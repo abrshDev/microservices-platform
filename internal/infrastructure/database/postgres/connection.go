@@ -20,7 +20,6 @@ func NewConnection() (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
 
-	// Try to connect up to 5 times
 	// Try to connect up to 10 times for slow first-time starts
 	for i := 0; i < 10; i++ {
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})

@@ -3,23 +3,27 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
+    container_name: user-service-db
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: user_db
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   user-service:
     build: .
+    container_name: user-service-app
+    env_file:
+      - .env
     ports:
-      - "8080:8080" # REST/HTTP interface
-      - "50051:50051" # gRPC interface
+      - "8080:8080"   # Fiber REST
+      - "50051:50051" # gRPC
     depends_on:
       - db
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: user
-      DB_PASSWORD: password
-      DB_NAME: user_db
+    restart: on-failure
+
+volumes:
+  postgres_data:
