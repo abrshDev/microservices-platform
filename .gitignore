@@ -1,0 +1,12 @@
+# Binary files
+main
+main.exe
+
+# Dependencies
+vendor/
+
+# Environment variables
+.env
+
+# Docker data (if you mapped any local paths)
+postgres_data/
