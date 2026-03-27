@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"strconv"
-
 	"github.com/abrshDev/user-service/internal/app/user/commands"
 	"github.com/abrshDev/user-service/internal/app/user/queries"
 	"github.com/gofiber/fiber/v2"
@@ -35,13 +33,9 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 }
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {
-	idParam := c.Params("id")
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID format"})
-	}
+	id := c.Params("id") // Keep it as a string
 
-	query := queries.GetUserQuery{ID: uint(id)}
+	query := queries.GetUserQuery{ID: id}
 	user, err := h.getHandler.Execute(c.Context(), query)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "User not found"})

@@ -8,7 +8,7 @@ import (
 )
 
 type GetUserQuery struct {
-	ID uint
+	ID string
 }
 
 type GetUserHandler struct {
