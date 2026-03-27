@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/abrshDev/user-service/internal/app/user/commands"
+	"github.com/abrshDev/user-service/internal/app/user/queries"
 	"github.com/abrshDev/user-service/internal/delivery/http" // Import our new router
 	"github.com/abrshDev/user-service/internal/delivery/http/handlers"
 	"github.com/abrshDev/user-service/internal/infrastructure/database/postgres"
@@ -13,12 +14,13 @@ import (
 func main() {
 	db, _ := postgres.NewConnection()
 	userRepo := postgres.NewUserRepository(db)
+
 	createUserCmd := commands.NewCreateUserHandler(userRepo)
-	userHttpHandler := handlers.NewUserHandler(createUserCmd)
+	getUserQuery := queries.NewGetUserHandler(userRepo)
+	userHttpHandler := handlers.NewUserHandler(createUserCmd, getUserQuery)
 
 	app := fiber.New()
 
-	// Use the dedicated router file
 	http.SetupRoutes(app, userHttpHandler)
 
 	log.Fatal(app.Listen(":8080"))

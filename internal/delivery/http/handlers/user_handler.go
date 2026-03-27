@@ -1,16 +1,23 @@
 package handlers
 
 import (
+	"strconv"
+
 	"github.com/abrshDev/user-service/internal/app/user/commands"
+	"github.com/abrshDev/user-service/internal/app/user/queries"
 	"github.com/gofiber/fiber/v2"
 )
 
 type UserHandler struct {
 	createHandler *commands.CreateUserHandler
+	getHandler    *queries.GetUserHandler
 }
 
-func NewUserHandler(c *commands.CreateUserHandler) *UserHandler {
-	return &UserHandler{createHandler: c}
+func NewUserHandler(c *commands.CreateUserHandler, q *queries.GetUserHandler) *UserHandler {
+	return &UserHandler{
+		createHandler: c,
+		getHandler:    q,
+	}
 }
 
 func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
@@ -25,4 +32,20 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	return c.Status(201).JSON(fiber.Map{"message": "User created"})
+}
+
+func (h *UserHandler) GetUser(c *fiber.Ctx) error {
+	idParam := c.Params("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID format"})
+	}
+
+	query := queries.GetUserQuery{ID: uint(id)}
+	user, err := h.getHandler.Execute(c.Context(), query)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "User not found"})
+	}
+
+	return c.JSON(user)
 }

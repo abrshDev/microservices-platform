@@ -9,7 +9,7 @@ func SetupRoutes(app *fiber.App, userHandler *handlers.UserHandler) {
 	api := app.Group("/api/v1")
 
 	// User Routes
+	api.Get("/users/:id", userHandler.GetUser)
 	api.Post("/users", userHandler.CreateUser)
 
-	// api.Get("/users/:id", userHandler.GetUser) // We will add this next
 }
