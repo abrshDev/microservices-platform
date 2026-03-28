@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/abrshDev/user-service/internal/app/user/commands"
 	"github.com/abrshDev/user-service/internal/app/user/queries"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -23,15 +26,26 @@ func NewUserHandler(c *commands.CreateUserHandler, q *queries.GetUserHandler, d 
 func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	var req commands.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON format"})
 	}
 
 	err := h.createHandler.Execute(c.Context(), req)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		// Check if the error is a Validation Error
+		var ve validator.ValidationErrors
+		if errors.As(err, &ve) {
+			out := make(map[string]string)
+			for _, fe := range ve {
+				out[fe.Field()] = "failed on the '" + fe.Tag() + "' tag"
+			}
+			return c.Status(400).JSON(fiber.Map{"validation_errors": out})
+		}
+
+		// Otherwise, it's a server/database error
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
 	}
 
-	return c.Status(201).JSON(fiber.Map{"message": "User created"})
+	return c.Status(201).JSON(fiber.Map{"message": "User created successfully"})
 }
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {

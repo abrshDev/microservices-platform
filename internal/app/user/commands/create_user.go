@@ -2,15 +2,17 @@ package commands
 
 import (
 	"context"
-	"errors"
 
 	"github.com/abrshDev/user-service/internal/domain/entities"
 	"github.com/abrshDev/user-service/internal/domain/repositories"
+	"github.com/go-playground/validator/v10"
 )
 
+var validate = validator.New()
+
 type CreateUserRequest struct {
-	Username string
-	Email    string
+	Username string `json:"username" validate:"required,min=3,max=32"`
+	Email    string `json:"email" validate:"required,email"`
 }
 
 type CreateUserHandler struct {
@@ -22,8 +24,8 @@ func NewCreateUserHandler(repo repositories.UserRepository) *CreateUserHandler {
 }
 
 func (h *CreateUserHandler) Execute(ctx context.Context, req CreateUserRequest) error {
-	if req.Username == "" || req.Email == "" {
-		return errors.New("username and email cannot be empty")
+	if err := validate.Struct(req); err != nil {
+		return err
 	}
 
 	user := &entities.User{
