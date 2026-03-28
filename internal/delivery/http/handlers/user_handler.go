@@ -9,12 +9,14 @@ import (
 type UserHandler struct {
 	createHandler *commands.CreateUserHandler
 	getHandler    *queries.GetUserHandler
+	DeleteHandler *commands.DeleteUserHandler
 }
 
-func NewUserHandler(c *commands.CreateUserHandler, q *queries.GetUserHandler) *UserHandler {
+func NewUserHandler(c *commands.CreateUserHandler, q *queries.GetUserHandler, d *commands.DeleteUserHandler) *UserHandler {
 	return &UserHandler{
 		createHandler: c,
 		getHandler:    q,
+		DeleteHandler: d,
 	}
 }
 
@@ -42,4 +44,13 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(user)
+}
+func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
+	id := c.Params("id")
+	err := h.DeleteHandler.Execute(c.Context(), id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "user not found"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "soft deleted successfully"})
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/abrshDev/user-service/internal/domain/entities"
-	"github.com/abrshDev/user-service/internal/domain/repositories" // Import the interface
+	"github.com/abrshDev/user-service/internal/domain/repositories"
 	"gorm.io/gorm"
 )
 
@@ -12,7 +12,6 @@ type userRepository struct {
 	db *gorm.DB
 }
 
-// Note: This returns the INTERFACE from the domain
 func NewUserRepository(db *gorm.DB) repositories.UserRepository {
 	return &userRepository{db: db}
 }
@@ -23,8 +22,14 @@ func (r *userRepository) Create(ctx context.Context, user *entities.User) error 
 
 func (r *userRepository) GetByID(ctx context.Context, id string) (*entities.User, error) {
 	var user entities.User
-	if err := r.db.WithContext(ctx).First(&user, id).Error; err != nil {
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	if err != nil {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *userRepository) Delete(ctx context.Context, id string) error {
+
+	return r.db.WithContext(ctx).Delete(&entities.User{}, "id = ?", id).Error
 }
