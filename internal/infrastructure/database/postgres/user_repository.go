@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 
 	"github.com/abrshDev/user-service/internal/domain/entities"
 	"github.com/abrshDev/user-service/internal/domain/repositories"
@@ -32,4 +33,17 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*entities.User
 func (r *userRepository) Delete(ctx context.Context, id string) error {
 
 	return r.db.WithContext(ctx).Delete(&entities.User{}, "id = ?", id).Error
+}
+
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entities.User, error) {
+	var user entities.User
+	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domErrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
 }

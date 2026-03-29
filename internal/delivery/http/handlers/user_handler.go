@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 
+    domErrors "github.com/abrshDev/user-service/internal/domain/errors"
 	"github.com/abrshDev/user-service/internal/app/user/commands"
 	"github.com/abrshDev/user-service/internal/app/user/queries"
 	"github.com/go-playground/validator/v10"
@@ -29,23 +30,21 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid JSON format"})
 	}
 
-	err := h.createHandler.Execute(c.Context(), req)
-	if err != nil {
-		// Check if the error is a Validation Error
-		var ve validator.ValidationErrors
-		if errors.As(err, &ve) {
-			out := make(map[string]string)
-			for _, fe := range ve {
-				out[fe.Field()] = "failed on the '" + fe.Tag() + "' tag"
-			}
-			return c.Status(400).JSON(fiber.Map{"validation_errors": out})
-		}
+	
+err := h.createHandler.Execute(c.Context(), req)
+if err != nil {
+    // 400 Bad Request
+    var ve validator.ValidationErrors
+    if errors.As(err, &ve) {
+        return c.Status(400).JSON(fiber.Map{"validation_errors": "invalid input"})
+    }
 
-		// Otherwise, it's a server/database error
-		return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
-	}
+    // 409 Conflict
+    if errors.Is(err, domErrors.ErrEmailAlreadyInUse) {
+        return c.Status(409).JSON(fiber.Map{"error": err.Error()})
+    }
 
-	return c.Status(201).JSON(fiber.Map{"message": "User created successfully"})
+    return c.Status(500).JSON(fiber.Map{"error": "Internal server error"})
 }
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {

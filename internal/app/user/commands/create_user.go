@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/abrshDev/user-service/internal/domain/entities"
+	domErrors "github.com/abrshDev/user-service/internal/domain/errors"
 	"github.com/abrshDev/user-service/internal/domain/repositories"
 	"github.com/go-playground/validator/v10"
 )
@@ -26,6 +27,12 @@ func NewCreateUserHandler(repo repositories.UserRepository) *CreateUserHandler {
 func (h *CreateUserHandler) Execute(ctx context.Context, req CreateUserRequest) error {
 	if err := validate.Struct(req); err != nil {
 		return err
+	}
+
+	// Check if user exists
+	existing, err := h.repo.GetByEmail(ctx, req.Email)
+	if err == nil && existing != nil {
+		return domErrors.ErrEmailAlreadyInUse
 	}
 
 	user := &entities.User{
