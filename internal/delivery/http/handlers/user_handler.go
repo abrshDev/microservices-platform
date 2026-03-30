@@ -78,7 +78,7 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	userID, err := h.LoginHandler.Execute(c.Context(), req)
+	accessToken, err := h.LoginHandler.Execute(c.Context(), req)
 	if err != nil {
 
 		return c.Status(401).JSON(fiber.Map{
@@ -87,7 +87,7 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(fiber.Map{
-		"message": "Login successful",
-		"user_id": userID,
+		"access_token": accessToken,
+		"message":      "Login successful",
 	})
 }

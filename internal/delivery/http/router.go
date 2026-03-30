@@ -2,16 +2,18 @@ package http
 
 import (
 	"github.com/abrshDev/user-service/internal/delivery/http/handlers"
+	"github.com/abrshDev/user-service/internal/delivery/http/middleware"
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupRoutes(app *fiber.App, userHandler *handlers.UserHandler) {
+func SetupRoutes(app *fiber.App, handler *handlers.UserHandler) {
 	api := app.Group("/api/v1")
 
-	// User Routes
-	api.Get("/users/:id", userHandler.GetUser)
-	api.Post("/users", userHandler.CreateUser)
-	api.Delete("/users/:id", userHandler.DeleteUser)
-	api.Post("/login", userHandler.Login)
+	// Public
+	api.Post("/login", handler.Login)
+	api.Post("/users", handler.CreateUser)
 
+	// Protected (Pass the secret here!)
+	api.Get("/users/:id", middleware.Protected(), handler.GetUser)
+	api.Delete("/users/:id", middleware.Protected(), handler.DeleteUser)
 }
