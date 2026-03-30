@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/abrshDev/user-service/internal/domain/entities"
+	domErrors "github.com/abrshDev/user-service/internal/domain/errors"
 	"github.com/abrshDev/user-service/internal/domain/repositories"
 	"gorm.io/gorm"
 )

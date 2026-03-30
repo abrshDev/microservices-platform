@@ -18,7 +18,9 @@ func main() {
 	createUserCmd := commands.NewCreateUserHandler(userRepo)
 	getUserQuery := queries.NewGetUserHandler(userRepo)
 	DeleteUserCmd := commands.NewDeleteUserHandler(userRepo)
-	userHttpHandler := handlers.NewUserHandler(createUserCmd, getUserQuery, DeleteUserCmd)
+	LoginQuery := queries.NewLoginHandler(userRepo)
+
+	userHttpHandler := handlers.NewUserHandler(createUserCmd, getUserQuery, DeleteUserCmd, LoginQuery)
 
 	app := fiber.New()
 
