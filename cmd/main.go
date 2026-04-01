@@ -37,7 +37,7 @@ func main() {
 	// gRPC server
 
 	// Initialize gRPC Handler
-	userGrpcHandler := grpc_handlers.NewUserGRPCHandler(getUserQuery)
+	userGrpcHandler := grpc_handlers.NewUserGRPCHandler(getUserQuery, deleteUserCmd)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {

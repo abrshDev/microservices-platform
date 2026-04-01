@@ -3,19 +3,22 @@ package handlers
 import (
 	"context"
 
+	"github.com/abrshDev/user-service/internal/app/user/commands"
 	"github.com/abrshDev/user-service/internal/app/user/queries"
 	pb "github.com/abrshDev/user-service/internal/transport/grpc/proto"
 )
 
 type UserGRPCHandler struct {
 	pb.UnimplementedUserServiceServer
-	getUserQuery *queries.GetUserHandler
+	getUserQuery  *queries.GetUserHandler
+	deleteUserCmd *commands.DeleteUserHandler
 }
 
 // Added the missing closing brace here
-func NewUserGRPCHandler(getUser *queries.GetUserHandler) *UserGRPCHandler {
+func NewUserGRPCHandler(getUser *queries.GetUserHandler, deleteUser *commands.DeleteUserHandler) *UserGRPCHandler {
 	return &UserGRPCHandler{
-		getUserQuery: getUser,
+		getUserQuery:  getUser,
+		deleteUserCmd: deleteUser,
 	}
 }
 
@@ -36,5 +39,15 @@ func (h *UserGRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (
 		Id:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
+	}, nil
+}
+func (h *UserGRPCHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
+	err := h.deleteUserCmd.Execute(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.DeleteUserResponse{
+		Message: "User deleted successfully",
 	}, nil
 }
