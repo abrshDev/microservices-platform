@@ -1,29 +1,29 @@
 version: '3.8'
 
 services:
-  # --- USER SERVICE INFRASTRUCTURE ---
-  user-db: 
+  # Rename 'user-db' back to 'db'
+  db: 
     image: postgres:15-alpine
-    container_name: user-service-db
+    container_name: user-serviceDb
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: user_db
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=user_db
     ports:
       - "5432:5432" 
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
 
   user-service:
-    build: ./user_service # CRITICAL: Point to the sub-folder
+    build: ./user_service
     container_name: user-service-app
     env_file:
-      - .env # Pulls from the root 
+      - .env
     ports:
       - "8080:8080"
       - "50051:50051"
     depends_on:
-      - user-db
+      - db # Update this to match
     restart: on-failure
 
 volumes:

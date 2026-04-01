@@ -18,7 +18,7 @@ WORKDIR /root/
 
 # Copy the binary and .env from builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
+
 
 EXPOSE 8080 50051
 
