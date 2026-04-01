@@ -1,7 +1,8 @@
 version: '3.8'
 
 services:
-  db:
+  # --- USER SERVICE INFRASTRUCTURE ---
+  user-db: 
     image: postgres:15-alpine
     container_name: user-service-db
     environment:
@@ -9,21 +10,21 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: user_db
     ports:
-      - "5432:5432"
+      - "5432:5432" 
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - user_postgres_data:/var/lib/postgresql/data
 
   user-service:
-    build: .
+    build: ./user_service # CRITICAL: Point to the sub-folder
     container_name: user-service-app
     env_file:
-      - .env
+      - .env # Pulls from the root 
     ports:
-      - "8080:8080"   # Fiber REST
-      - "50051:50051" # gRPC
+      - "8080:8080"
+      - "50051:50051"
     depends_on:
-      - db
+      - user-db
     restart: on-failure
 
 volumes:
-  postgres_data:
+  user_postgres_data: # Renamed to keep data separate from Task Service
