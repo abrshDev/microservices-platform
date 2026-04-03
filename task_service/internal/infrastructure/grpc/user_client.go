@@ -33,26 +33,21 @@ func NewUserClient(address string) (*UserClient, error) {
 	}, nil
 }
 
-// CheckUserExists returns (exists, error)
-func (c *UserClient) CheckUserExists(ctx context.Context, userID string) (bool, error) {
+func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	_, err := c.client.GetUser(ctx, &user.GetUserRequest{Id: userID})
+	resp, err := c.client.GetUser(ctx, &user.GetUserRequest{Id: userID})
 	if err != nil {
-		// Convert the raw error into a gRPC status
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.NotFound {
-			// The service responded, and it said the user doesn't exist
-			return false, nil
+			return nil, nil
 		}
-		// If it's any other error (Timeout, Connection refused), return the error
-		return false, fmt.Errorf("user service call failed: %v", err)
+		return nil, err
 	}
 
-	return true, nil
+	return resp, nil
 }
-
 func (c *UserClient) Close() error {
 	return c.conn.Close()
 }
