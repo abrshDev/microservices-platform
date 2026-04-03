@@ -3,7 +3,6 @@ package handlers
 import (
 	"github.com/abrshDev/task-service/internal/app/task/commands"
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 type TaskHandler struct {
@@ -17,42 +16,30 @@ func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler) *TaskHandler 
 }
 
 func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
-	// 1. Define local request structure
-	type request struct {
-		UserID      string `json:"user_id"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-	}
 
-	var req request
-	if err := c.BodyParser(&req); err != nil {
+	var cmd commands.CreateTaskCommand
+	if err := c.BodyParser(&cmd); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "cannot parse JSON",
+			"error": "cannot parse JSON request body",
 		})
 	}
 
-	// 2. Validate and convert UUID
-	userUUID, err := uuid.Parse(req.UserID)
-	if err != nil {
+	// 2. Validation (Basic Field Check)
+	if cmd.UserID == "" || cmd.Title == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "invalid user_id format",
+			"error": "user_id and title are required fields",
 		})
 	}
 
-	// 3. Map to Command DTO
-	commandReq := commands.CreateTaskRequest{
-		UserID:      userUUID,
-		Title:       req.Title,
-		Description: req.Description,
-	}
+	if err := h.createTaskHandler.Execute(c.UserContext(), cmd); err != nil {
 
-	// 4. Execute Command
-	task, err := h.createTaskHandler.Execute(c.Context(), commandReq)
-	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(task)
+	// 4. Return Success
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Task created successfully",
+	})
 }

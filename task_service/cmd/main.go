@@ -9,11 +9,11 @@ import (
 	"github.com/abrshDev/task-service/internal/delivery/http/handlers"
 	"github.com/abrshDev/task-service/internal/infrastructure/config"
 	"github.com/abrshDev/task-service/internal/infrastructure/database/postgres"
+	"github.com/abrshDev/task-service/internal/infrastructure/grpc" // 1. Import your new gRPC infra
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
-	// 1. Separate the loading logic
 	config.LoadEnv()
 
 	// 2. Initialize Infrastructure (DB)
@@ -22,16 +22,30 @@ func main() {
 		log.Fatalf("Database connection failed: %v", err)
 	}
 
-	// 3. Dependency Injection (The "Chain")
+	// 3. Initialize gRPC Client (The "Bridge" to User Service)
+	// Pull the address from environment (e.g., "user-service:50051")
+	userSvcAddr := os.Getenv("USER_SERVICE_ADDR")
+	if userSvcAddr == "" {
+		userSvcAddr = "localhost:50051"
+	}
+
+	userClient, err := grpc.NewUserClient(userSvcAddr)
+	if err != nil {
+		log.Fatalf("Failed to initialize User gRPC client: %v", err)
+	}
+	defer userClient.Close() // Clean up the connection on shutdown
+
+	// 4. Dependency Injection (The "Chain")
 	taskRepo := postgres.NewTaskRepository(db)
-	createTaskCmd := commands.NewCreateTaskHandler(taskRepo)
+
+	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient)
+
 	taskHandler := handlers.NewTaskHandler(createTaskCmd)
 
-	// 4. Setup Server
+	// 5. Setup Server
 	app := fiber.New()
 	http.SetupRoutes(app, taskHandler)
 
-	// 5. Run
 	port := os.Getenv("TASK_APP_PORT")
 	if port == "" {
 		port = "8081"
