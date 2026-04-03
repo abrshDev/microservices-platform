@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/abrshDev/user-service/internal/transport/grpc/proto/user";
+
+// The UserService defines the operations available over gRPC
+service UserService {
+  // GetUser allows other services to fetch user details by ID
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+
+   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+}
+
+// The request message containing the User UUID
+message GetUserRequest {
+  string id = 1;
+}
+
+// The response message containing the data needed by other services
+message UserResponse {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {
+  string message = 1;
+}
