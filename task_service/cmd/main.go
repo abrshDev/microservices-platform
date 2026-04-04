@@ -41,7 +41,7 @@ func main() {
 	appLogger := logger.NewLogger("task-service")
 	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, appLogger)
 
-	taskHandler := handlers.NewTaskHandler(createTaskCmd)
+	taskHandler := handlers.NewTaskHandler(createTaskCmd, appLogger)
 
 	// 5. Setup Server
 	app := fiber.New()
