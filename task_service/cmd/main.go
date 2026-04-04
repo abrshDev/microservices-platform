@@ -10,6 +10,7 @@ import (
 	"github.com/abrshDev/task-service/internal/infrastructure/config"
 	"github.com/abrshDev/task-service/internal/infrastructure/database/postgres"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc" // 1. Import your new gRPC infra
+	"github.com/abrshDev/task-service/internal/infrastructure/logger"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -37,8 +38,8 @@ func main() {
 
 	// 4. Dependency Injection (The "Chain")
 	taskRepo := postgres.NewTaskRepository(db)
-
-	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient)
+	appLogger := logger.NewLogger("task-service")
+	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, appLogger)
 
 	taskHandler := handlers.NewTaskHandler(createTaskCmd)
 
