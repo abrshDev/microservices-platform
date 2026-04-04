@@ -34,19 +34,41 @@ func NewUserClient(address string) (*UserClient, error) {
 }
 
 func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
+	var lastErr error
+	maxRetries := 3
 
-	resp, err := c.client.GetUser(ctx, &user.GetUserRequest{Id: userID})
-	if err != nil {
-		st, ok := status.FromError(err)
-		if ok && st.Code() == codes.NotFound {
-			return nil, nil
+	for i := 0; i < maxRetries; i++ {
+		// 1. Create a per-attempt timeout (Resilience Rule #1: Never wait forever)
+		attemptCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+
+		resp, err := c.client.GetUser(attemptCtx, &user.GetUserRequest{Id: userID})
+		cancel()
+
+		if err == nil {
+			return resp, nil // Success!
 		}
+
+		// 2. Analyze the error (Resilience Rule #2: Only retry what makes sense)
+		st, ok := status.FromError(err)
+		if ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return nil, nil // User doesn't exist, no point in retrying
+			case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted:
+				// These are "Transient" errors - the service might come back!
+				lastErr = err
+				// 3. Exponential Backoff (Wait: 100ms, 200ms, 400ms)
+				waitTime := time.Duration(100*(1<<i)) * time.Millisecond
+				time.Sleep(waitTime)
+				continue
+			}
+		}
+
+		// If it's a critical error we can't fix by retrying, return immediately
 		return nil, err
 	}
 
-	return resp, nil
+	return nil, fmt.Errorf("user service unreachable after %d attempts: %w", maxRetries, lastErr)
 }
 func (c *UserClient) Close() error {
 	return c.conn.Close()
