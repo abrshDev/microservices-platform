@@ -53,11 +53,10 @@ func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
 
 	// 2. Execute the Query
 	// Note: We use c.UserContext() to pass the request context correctly
-	task, err := h.getTaskQuery.Execute(c.Context(), queries.GetTaskQuery{
+	task, err := h.GetTaskHandler.Execute(c.Context(), queries.GetTaskQuery{
 		ID: id,
 	})
 
-	// 3. Senior Error Handling (The Guard Clauses)
 	if err != nil {
 		h.logger.Error("failed to execute get task query",
 			slog.String("task_id", id),

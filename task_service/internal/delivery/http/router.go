@@ -10,5 +10,6 @@ func SetupRoutes(app *fiber.App, taskHandler *handlers.TaskHandler) {
 
 	tasks := api.Group("/tasks")
 	tasks.Post("/create", taskHandler.CreateTask)
+	tasks.Get("/get/:id", taskHandler.GetTask)
 
 }

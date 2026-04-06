@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/abrshDev/task-service/internal/app/task/commands"
+	"github.com/abrshDev/task-service/internal/app/task/queries"
 	"github.com/abrshDev/task-service/internal/delivery/http"
 	"github.com/abrshDev/task-service/internal/delivery/http/handlers"
 	"github.com/abrshDev/task-service/internal/infrastructure/config"
@@ -40,8 +41,8 @@ func main() {
 	taskRepo := postgres.NewTaskRepository(db)
 	appLogger := logger.NewLogger("task-service")
 	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, appLogger)
-
-	taskHandler := handlers.NewTaskHandler(createTaskCmd, appLogger)
+	getTaskQuery := queries.NewGetTaskHandler(taskRepo, userClient, appLogger)
+	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, appLogger)
 
 	// 5. Setup Server
 	app := fiber.New()
