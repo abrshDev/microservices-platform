@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user"
+	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -13,12 +14,12 @@ import (
 )
 
 type UserClient struct {
-	client user.UserServiceClient
-	conn   *grpc.ClientConn
+	client  user.UserServiceClient
+	conn    *grpc.ClientConn
+	breaker *gobreaker.CircuitBreaker
 }
 
 func NewUserClient(address string) (*UserClient, error) {
-	// NewClient is non-blocking; it won't fail if User Service is temporarily down
 	conn, err := grpc.NewClient(
 		address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -27,49 +28,71 @@ func NewUserClient(address string) (*UserClient, error) {
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
+	// 3. Initialize the Circuit Breaker settings
+	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "user-service-breaker",
+		MaxRequests: 3,                // Max requests allowed when "half-open"
+		Interval:    5 * time.Second,  // Reset interval
+		Timeout:     10 * time.Second, // How long to stay "Open" before trying again
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			// Trip if we fail 5 times in a row
+			return counts.ConsecutiveFailures > 5
+		},
+	})
+
 	return &UserClient{
-		client: user.NewUserServiceClient(conn),
-		conn:   conn,
+		client:  user.NewUserServiceClient(conn),
+		conn:    conn,
+		breaker: cb, // 4. Assign it
 	}, nil
 }
 
 func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
-	var lastErr error
-	maxRetries := 3
+	// 5. Wrap your logic inside the breaker's Execute function
+	result, err := c.breaker.Execute(func() (interface{}, error) {
+		var lastErr error
+		maxRetries := 3
 
-	for i := 0; i < maxRetries; i++ {
-		// 1. Create a per-attempt timeout (Resilience Rule #1: Never wait forever)
-		attemptCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		for i := 0; i < maxRetries; i++ {
+			attemptCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			resp, err := c.client.GetUser(attemptCtx, &user.GetUserRequest{Id: userID})
+			cancel()
 
-		resp, err := c.client.GetUser(attemptCtx, &user.GetUserRequest{Id: userID})
-		cancel()
-
-		if err == nil {
-			return resp, nil // Success!
-		}
-
-		// 2. Analyze the error (Resilience Rule #2: Only retry what makes sense)
-		st, ok := status.FromError(err)
-		if ok {
-			switch st.Code() {
-			case codes.NotFound:
-				return nil, nil // User doesn't exist, no point in retrying
-			case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted:
-				// These are "Transient" errors - the service might come back!
-				lastErr = err
-				// 3. Exponential Backoff (Wait: 100ms, 200ms, 400ms)
-				waitTime := time.Duration(100*(1<<i)) * time.Millisecond
-				time.Sleep(waitTime)
-				continue
+			if err == nil {
+				return resp, nil
 			}
-		}
 
-		// If it's a critical error we can't fix by retrying, return immediately
+			st, ok := status.FromError(err)
+			if ok {
+				switch st.Code() {
+				case codes.NotFound:
+					// IMPORTANT: Don't return error to breaker for 404s,
+					// otherwise the breaker will trip because of missing users!
+					return nil, nil
+				case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted:
+					lastErr = err
+					waitTime := time.Duration(100*(1<<uint(i))) * time.Millisecond
+					time.Sleep(waitTime)
+					continue
+				}
+			}
+			return nil, err
+		}
+		return nil, lastErr
+	})
+
+	if err != nil {
+		// This could be a gRPC error OR a "circuit breaker is open" error
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("user service unreachable after %d attempts: %w", maxRetries, lastErr)
+	if result == nil {
+		return nil, nil
+	}
+
+	return result.(*user.UserResponse), nil
 }
+
 func (c *UserClient) Close() error {
 	return c.conn.Close()
 }
