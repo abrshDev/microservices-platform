@@ -29,7 +29,7 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 
 	userData, err := h.createTaskHandler.Execute(c.Context(), cmd)
 	if err != nil {
-		// Now h.logger will work here!
+
 		h.logger.Error("task creation failed",
 			slog.String("user_id", cmd.UserID),
 			slog.String("error", err.Error()),
@@ -43,4 +43,8 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 			"user": userData,
 		},
 	})
+}
+
+func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
+
 }
