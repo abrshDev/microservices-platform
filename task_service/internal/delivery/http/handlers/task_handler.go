@@ -4,18 +4,21 @@ import (
 	"log/slog" // Import slog
 
 	"github.com/abrshDev/task-service/internal/app/task/commands"
+	"github.com/abrshDev/task-service/internal/app/task/queries"
 	"github.com/gofiber/fiber/v2"
 )
 
 type TaskHandler struct {
 	createTaskHandler *commands.CreateTaskHandler
+	GetTaskHandler    *queries.GetTaskHandler
 	logger            *slog.Logger // Add this line
 }
 
 // Update the constructor to accept the logger
-func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, logger *slog.Logger) *TaskHandler {
+func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, getTaskHandler *queries.GetTaskHandler, logger *slog.Logger) *TaskHandler {
 	return &TaskHandler{
 		createTaskHandler: createTaskHandler,
+		GetTaskHandler:    getTaskHandler,
 		logger:            logger,
 	}
 }
@@ -44,7 +47,43 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 		},
 	})
 }
-
 func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
+	// 1. Extract the ID from the URL path (/tasks/:id)
+	id := c.Params("id")
 
+	// 2. Execute the Query
+	// Note: We use c.UserContext() to pass the request context correctly
+	task, err := h.getTaskQuery.Execute(c.Context(), queries.GetTaskQuery{
+		ID: id,
+	})
+
+	// 3. Senior Error Handling (The Guard Clauses)
+	if err != nil {
+		h.logger.Error("failed to execute get task query",
+			slog.String("task_id", id),
+			slog.String("error", err.Error()),
+		)
+
+		// If the error is specifically about UUID format, return 400
+		if err.Error() == "invalid task uuid format" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Invalid ID format",
+			})
+		}
+
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Internal server error",
+		})
+	}
+
+	// 4. Handle the "Not Found" case
+	if task == nil {
+		h.logger.Warn("task lookup returned no results", slog.String("task_id", id))
+		return c.Status(404).JSON(fiber.Map{
+			"error": "Task not found",
+		})
+	}
+
+	// 5. Success - Return the merged Task + User data
+	return c.Status(200).JSON(task)
 }
