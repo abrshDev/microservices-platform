@@ -5,13 +5,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/abrshDev/task-service/internal/domain/entities"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func NewConnection() (*gorm.DB, error) {
-	// FIX: Changed to TASK_ prefixed variables to match your .env/compose
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		os.Getenv("TASK_DB_HOST"),
 		os.Getenv("TASK_DB_USER"),
@@ -27,12 +25,17 @@ func NewConnection() (*gorm.DB, error) {
 		return nil, fmt.Errorf("could not connect to database: %v", err)
 	}
 
-	log.Println("Running database migrations...")
-	err = db.AutoMigrate(&entities.Task{})
+	// 1. Extract the underlying *sql.DB for golang-migrate
+	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("migration failed: %v", err)
+		return nil, fmt.Errorf("failed to get sql.DB from gorm: %v", err)
 	}
 
-	log.Println("Database connection established and migrated")
+	log.Println("Running versioned database migrations (golang-migrate)...")
+	if err := RunMigrations(sqlDB); err != nil {
+		return nil, fmt.Errorf("versioned migration failed: %v", err)
+	}
+
+	log.Println("Database connection established and versioned migrations applied")
 	return db, nil
 }
