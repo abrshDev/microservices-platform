@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package notification;
+
+
+option go_package = "github.com/abrshDev/notification_service/internal/transport/grpc/proto/notification";
+
+service NotificationService {
+  rpc SendNotification (NotificationRequest) returns (NotificationResponse);
+}
+
+message NotificationRequest {
+  string user_id = 1;
+  string message = 2;
+  string type    = 3;
+}
+
+message NotificationResponse {
+  bool success   = 1;
+  string message = 2;
+}
