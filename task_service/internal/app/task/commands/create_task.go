@@ -19,16 +19,18 @@ type CreateTaskCommand struct {
 }
 
 type CreateTaskHandler struct {
-	repo       repositories.TaskRepository
-	userClient *grpc.UserClient
-	logger     *slog.Logger
+	repo        repositories.TaskRepository
+	userClient  *grpc.UserClient
+	notifClient *grpc.NotificationClient // Fixed typo here (Clinet -> Client)
+	logger      *slog.Logger
 }
 
-func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, logger *slog.Logger) *CreateTaskHandler {
+func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, notifClient *grpc.NotificationClient, logger *slog.Logger) *CreateTaskHandler {
 	return &CreateTaskHandler{
-		repo:       repo,
-		userClient: userClient,
-		logger:     logger,
+		repo:        repo,
+		userClient:  userClient,
+		notifClient: notifClient,
+		logger:      logger,
 	}
 }
 
@@ -82,6 +84,10 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		)
 		return nil, err
 	}
+
+	// 5. Trigger Notification (Added Logic)
+	// We run this in a background goroutine so it doesn't block the API response.
+	go h.notifClient.SendTaskNotification(context.Background(), cmd.UserID, cmd.Title)
 
 	h.logger.Info("task created successfully",
 		slog.String("task_id", task.ID.String()),

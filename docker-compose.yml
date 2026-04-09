@@ -22,8 +22,8 @@ services:
     env_file:
       - .env
     ports:
-      - "8080:8080"   # REST API
-      - "50051:50051" # gRPC Server
+      - "8080:8080"
+      - "50051:50051"
     depends_on:
       - db
     restart: on-failure
@@ -39,7 +39,7 @@ services:
       - POSTGRES_PASSWORD=${TASK_DB_PASSWORD}
       - POSTGRES_DB=${TASK_DB_NAME}
     ports:
-      - "5433:5432" # External 5433 to avoid conflict with User DB port
+      - "5433:5432"
     volumes:
       - task_postgres_data:/var/lib/postgresql/data
     networks:
@@ -51,13 +51,37 @@ services:
     env_file:
       - .env
     environment:
-    
       - USER_SERVICE_ADDR=user-service:50051
+      - NOTIFICATION_SERVICE_ADDR=notification-service:50052
     ports:
-      - "${TASK_APP_PORT}:8081" 
+      - "8081:8081" # FIXED: Restored explicit port mapping
     depends_on:
       - task-db
       - user-service
+      - notification-service
+    restart: on-failure
+    networks:
+      - microservice-network
+
+  # --- NOTIFICATION SERVICE INFRASTRUCTURE ---
+  notification-db:
+    image: postgres:15-alpine
+    container_name: notification-serviceDb
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=notification_db
+    networks:
+      - microservice-network
+
+  notification-service:
+    build: ./notification_service
+    container_name: notification-service-app
+    ports:
+      - "8082:8082"
+      - "50052:50052"
+    depends_on:
+      - notification-db
     restart: on-failure
     networks:
       - microservice-network
@@ -69,3 +93,4 @@ networks:
 volumes:
   user_postgres_data:
   task_postgres_data:
+  notification_postgres_data:
