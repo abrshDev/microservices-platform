@@ -39,7 +39,7 @@ services:
       - POSTGRES_PASSWORD=${TASK_DB_PASSWORD}
       - POSTGRES_DB=${TASK_DB_NAME}
     ports:
-      - "5433:5432" # External 5433 to avoid conflict with User DB port
+      - "5433:5432"
     volumes:
       - task_postgres_data:/var/lib/postgresql/data
     networks:
@@ -51,13 +51,36 @@ services:
     env_file:
       - .env
     environment:
-    
       - USER_SERVICE_ADDR=user-service:50051
-    ports:
-      - "${TASK_APP_PORT}:8081" 
+      - NOTIFICATION_SERVICE_ADDR=notification-service:50052 # Added discovery address
     depends_on:
       - task-db
       - user-service
+      - notification-service # Now depends on the new service
+    restart: on-failure
+    networks:
+      - microservice-network
+
+  # --- NOTIFICATION SERVICE INFRASTRUCTURE ---
+  notification-db:
+    image: postgres:15-alpine
+    container_name: notification-serviceDb
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=notification_db
+    # No port mapping needed unless you want to access it from your host machine (e.g., 5434:5432)
+    networks:
+      - microservice-network
+
+  notification-service:
+    build: ./notification_service
+    container_name: notification-service-app
+    ports:
+      - "8082:8082"   # Potential REST port if you add one
+      - "50052:50052" # gRPC Server port
+    depends_on:
+      - notification-db
     restart: on-failure
     networks:
       - microservice-network
@@ -69,3 +92,4 @@ networks:
 volumes:
   user_postgres_data:
   task_postgres_data:
+  notification_postgres_data: # Added volume for notification data
