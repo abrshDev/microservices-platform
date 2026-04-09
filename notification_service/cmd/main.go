@@ -21,7 +21,8 @@ func main() {
 	// Initialize Transport Handler
 	grpcHandler := handlers.NewNotificationGRPCHandler(sendHandler)
 
-	lis, err := net.Listen("tcp", ":8082")
+	// CHANGE: Listen on 50052 to match gRPC service standards
+	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -29,7 +30,8 @@ func main() {
 	server := g.NewServer()
 	notification.RegisterNotificationServiceServer(server, grpcHandler)
 
-	logger.Info("Notification Service (CQRS) starting", "port", 8082)
+	// CHANGE: Log the correct port
+	logger.Info("Notification Service (CQRS) starting", "port", 50052)
 	if err := server.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
