@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  # --- USER SERVICE INFRASTRUCTURE ---
+  # --- USER SERVICE ---
   db: 
     image: postgres:15-alpine
     container_name: user-serviceDb
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=user_db
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     ports:
       - "5432:5432" 
     volumes:
@@ -30,7 +30,7 @@ services:
     networks:
       - microservice-network
 
-  # --- TASK SERVICE INFRASTRUCTURE ---
+  # --- TASK SERVICE ---
   task-db:
     image: postgres:15-alpine
     container_name: task-serviceDb
@@ -50,11 +50,8 @@ services:
     container_name: task-service-app
     env_file:
       - .env
-    environment:
-      - USER_SERVICE_ADDR=user-service:50051
-      - NOTIFICATION_SERVICE_ADDR=notification-service:50052
     ports:
-      - "8081:8081" # FIXED: Restored explicit port mapping
+      - "8081:8081"
     depends_on:
       - task-db
       - user-service
@@ -63,29 +60,33 @@ services:
     networks:
       - microservice-network
 
-  # --- NOTIFICATION SERVICE INFRASTRUCTURE ---
+  # --- NOTIFICATION SERVICE ---
   notification-db:
     image: postgres:15-alpine
     container_name: notification-serviceDb
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=notification_db
+      - POSTGRES_USER=${NOTIFICATION_DB_USER}
+      - POSTGRES_PASSWORD=${NOTIFICATION_DB_PASSWORD}
+      - POSTGRES_DB=${NOTIFICATION_DB_NAME}
     networks:
       - microservice-network
 
   notification-service:
     build: ./notification_service
     container_name: notification-service-app
+    env_file:
+      - .env
     ports:
       - "8082:8082"
       - "50052:50052"
     depends_on:
       - notification-db
+      - kafka
     restart: on-failure
     networks:
       - microservice-network
   
+  # --- KAFKA INFRASTRUCTURE ---
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     environment:
