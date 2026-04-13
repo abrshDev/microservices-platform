@@ -6,8 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/abrshDev/task-service/internal/domain/entities"
+	"github.com/abrshDev/task-service/internal/domain/events"
 	"github.com/abrshDev/task-service/internal/domain/repositories"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc"
+	"github.com/abrshDev/task-service/internal/infrastructure/kafka"
 	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user"
 	"github.com/google/uuid"
 )
@@ -19,18 +21,18 @@ type CreateTaskCommand struct {
 }
 
 type CreateTaskHandler struct {
-	repo        repositories.TaskRepository
-	userClient  *grpc.UserClient
-	notifClient *grpc.NotificationClient // Fixed typo here (Clinet -> Client)
-	logger      *slog.Logger
+	repo       repositories.TaskRepository
+	userClient *grpc.UserClient
+	producer   *kafka.EventProducer
+	logger     *slog.Logger
 }
 
-func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, notifClient *grpc.NotificationClient, logger *slog.Logger) *CreateTaskHandler {
+func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, producer *kafka.EventProducer, logger *slog.Logger) *CreateTaskHandler {
 	return &CreateTaskHandler{
-		repo:        repo,
-		userClient:  userClient,
-		notifClient: notifClient,
-		logger:      logger,
+		repo:       repo,
+		userClient: userClient,
+		producer:   producer,
+		logger:     logger,
 	}
 }
 
@@ -40,7 +42,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		slog.String("title", cmd.Title),
 	)
 
-	// 1. Verify user exists and get data via gRPC
+	// 1. Verify user exists and get data via gRPC (Synchronous Permission)
 	userData, err := h.userClient.GetUser(ctx, cmd.UserID)
 	if err != nil {
 		h.logger.Error("failed to verify user via gRPC",
@@ -76,7 +78,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		Status:      "PENDING",
 	}
 
-	// 4. Save to repository
+	// 4. Save to repository (Postgres)
 	if err := h.repo.Create(ctx, task); err != nil {
 		h.logger.Error("failed to save task to database",
 			slog.String("task_id", task.ID.String()),
@@ -85,11 +87,24 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		return nil, err
 	}
 
-	// 5. Trigger Notification (Added Logic)
-	// We run this in a background goroutine so it doesn't block the API response.
-	go h.notifClient.SendTaskNotification(context.Background(), cmd.UserID, cmd.Title)
+	// 5. Publish Event to Kafka (Asynchronous Announcement)
+	event := events.TaskCreatedEvent{
+		TaskID:      task.ID,
+		UserID:      task.UserID,
+		Title:       task.Title,
+		Description: task.Description,
+	}
 
-	h.logger.Info("task created successfully",
+	if err := h.producer.PublishTaskCreated(ctx, event); err != nil {
+		// We log the error but don't fail the request since the DB save succeeded.
+		// In a production app, you might use an Outbox Pattern to retry this.
+		h.logger.Error("failed to publish task created event to kafka",
+			slog.String("task_id", task.ID.String()),
+			slog.String("error", err.Error()),
+		)
+	}
+
+	h.logger.Info("task created successfully and event published",
 		slog.String("task_id", task.ID.String()),
 		slog.String("assigned_to", userData.Username),
 	)

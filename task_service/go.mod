@@ -7,6 +7,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/segmentio/kafka-go v0.4.50
 	github.com/sony/gobreaker v1.0.0
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/grpc v1.80.0
@@ -34,7 +35,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/segmentio/kafka-go v0.4.50 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
