@@ -11,6 +11,7 @@ import (
 	"github.com/abrshDev/task-service/internal/infrastructure/config"
 	"github.com/abrshDev/task-service/internal/infrastructure/database/postgres"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc"
+	"github.com/abrshDev/task-service/internal/infrastructure/kafka" // Added
 	"github.com/abrshDev/task-service/internal/infrastructure/logger"
 	"github.com/gofiber/fiber/v2"
 )
@@ -25,41 +26,37 @@ func main() {
 		log.Fatalf("Database connection failed: %v", err)
 	}
 
-	// 2. Service Discovery Addresses
+	// 2. Initialize Infrastructure (Kafka)
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "kafka:29092" // Use internal docker network address
+	}
+	taskProducer := kafka.NewEventProducer([]string{kafkaBrokers}, "task-events")
+
+	// 3. Service Discovery Addresses
 	userSvcAddr := os.Getenv("USER_SERVICE_ADDR")
 	if userSvcAddr == "" {
-		userSvcAddr = "localhost:50051"
+		userSvcAddr = "user-service:50051"
 	}
 
-	notSvcAddr := os.Getenv("NOTIFICATION_SERVICE_ADDR")
-	if notSvcAddr == "" {
-		notSvcAddr = "localhost:50052"
-	}
-
-	// 3. Initialize gRPC Clients
-	// User Client
+	// 4. Initialize gRPC Clients
+	// User Client (Kept for synchronous validation)
 	userClient, err := grpc.NewUserClient(userSvcAddr)
 	if err != nil {
 		log.Fatalf("Failed to initialize User gRPC client: %v", err)
 	}
 	defer userClient.Close()
 
-	// Notification Client
-	notifClient, err := grpc.NewNotificationClient(notSvcAddr, appLogger)
-	if err != nil {
-		log.Fatalf("Failed to initialize Notification gRPC client: %v", err)
-	}
-
-	// 4. Dependency Injection
+	// 5. Dependency Injection
 	taskRepo := postgres.NewTaskRepository(db)
 
-	// Injecting both clients into the Command Handler
-	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, notifClient, appLogger)
+	// Injecting UserClient (Sync) and taskProducer (Async)
+	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, taskProducer, appLogger)
 	getTaskQuery := queries.NewGetTaskHandler(taskRepo, userClient, appLogger)
 
 	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, appLogger)
 
-	// 5. Setup Server
+	// 6. Setup Server
 	app := fiber.New()
 	http.SetupRoutes(app, taskHandler)
 
