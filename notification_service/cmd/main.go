@@ -16,7 +16,7 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
+	sendHandler := commands.NewSendNotificationHandler(logger)
 	// 1. Initialize Infrastructure (Kafka Consumer)
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
 	if kafkaBrokers == "" {
@@ -28,6 +28,7 @@ func main() {
 		"task-events",
 		"notification-group",
 		logger,
+		sendHandler,
 	)
 
 	// 2. Start Kafka Consumer in a Goroutine (Non-blocking)
@@ -38,7 +39,6 @@ func main() {
 	}()
 
 	// 3. Initialize CQRS Handler (For gRPC if still needed)
-	sendHandler := commands.NewSendNotificationHandler(logger)
 
 	// 4. Initialize gRPC Transport Handler
 	grpcHandler := handlers.NewNotificationGRPCHandler(sendHandler)
