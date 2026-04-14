@@ -3,9 +3,9 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
+	"github.com/abrshDev/notification_service/internal/app/notification/commands"
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 )
@@ -19,11 +19,12 @@ type TaskCreatedEvent struct {
 }
 
 type NotificationConsumer struct {
-	reader *kafka.Reader
-	logger *slog.Logger
+	reader      *kafka.Reader
+	logger      *slog.Logger
+	sendHandler *commands.SendNotificationHandler
 }
 
-func NewNotificationConsumer(brokers []string, topic string, groupID string, logger *slog.Logger) *NotificationConsumer {
+func NewNotificationConsumer(brokers []string, topic string, groupID string, logger *slog.Logger, sendHandler *commands.SendNotificationHandler) *NotificationConsumer {
 	return &NotificationConsumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
 			Brokers:  brokers,
@@ -32,36 +33,36 @@ func NewNotificationConsumer(brokers []string, topic string, groupID string, log
 			MinBytes: 10e3, // 10KB
 			MaxBytes: 10e6, // 10MB
 		}),
-		logger: logger,
+		logger:      logger,
+		sendHandler: sendHandler,
 	}
 }
 
 func (c *NotificationConsumer) Start(ctx context.Context) {
-	c.logger.Info("Notification Kafka consumer started", slog.String("topic", c.reader.Config().Topic))
-
 	for {
 		msg, err := c.reader.ReadMessage(ctx)
 		if err != nil {
-			c.logger.Error("failed to read message from kafka", slog.String("error", err.Error()))
+			c.logger.Error("failed to read message", slog.String("error", err.Error()))
 			continue
 		}
 
 		var event TaskCreatedEvent
 		if err := json.Unmarshal(msg.Value, &event); err != nil {
-			c.logger.Error("failed to unmarshal task event", slog.String("error", err.Error()))
 			continue
 		}
 
-		c.logger.Info("successfully consumed kafka event",
-			slog.String("task_id", event.TaskID.String()),
-			slog.String("user_id", event.UserID.String()),
-		)
+		// Logic Change: Use the Command Handler instead of fmt.Printf
+		cmd := commands.SendNotificationCommand{
+			UserID:  event.UserID.String(),
+			Message: "New Task Created: " + event.Title,
+			Type:    "TASK_ALERT",
+		}
 
-		// This replaces your old gRPC logic
-		fmt.Printf("\n[NOTIFICATION] Alerting User %s: You have a new task: %s\n", event.UserID, event.Title)
+		if err := c.sendHandler.Handle(ctx, cmd); err != nil {
+			c.logger.Error("handler failed", slog.String("error", err.Error()))
+		}
 	}
 }
-
 func (c *NotificationConsumer) Close() error {
 	return c.reader.Close()
 }
