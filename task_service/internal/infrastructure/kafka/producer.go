@@ -33,3 +33,11 @@ func (p *EventProducer) PublishTaskCreated(ctx context.Context, event interface{
 		Value: messageBytes,
 	})
 }
+
+// buffered messages are flushed to the brokers.
+func (p *EventProducer) Close() error {
+	if p.writer != nil {
+		return p.writer.Close()
+	}
+	return nil
+}
