@@ -10,15 +10,16 @@ import (
 
 type UserGRPCHandler struct {
 	pb.UnimplementedUserServiceServer
-	getUserQuery  *queries.GetUserHandler
-	deleteUserCmd *commands.DeleteUserHandler
+	getUserQuery     *queries.GetUserHandler
+	deleteUserCmd    *commands.DeleteUserHandler
+	checkStatusQuery *queries.CheckUserStatusHandler
 }
 
-// Added the missing closing brace here
-func NewUserGRPCHandler(getUser *queries.GetUserHandler, deleteUser *commands.DeleteUserHandler) *UserGRPCHandler {
+func NewUserGRPCHandler(getUser *queries.GetUserHandler, deleteUser *commands.DeleteUserHandler, checkuserstatus *queries.CheckUserStatusHandler) *UserGRPCHandler {
 	return &UserGRPCHandler{
-		getUserQuery:  getUser,
-		deleteUserCmd: deleteUser,
+		getUserQuery:     getUser,
+		deleteUserCmd:    deleteUser,
+		checkStatusQuery: checkuserstatus,
 	}
 }
 
@@ -50,4 +51,20 @@ func (h *UserGRPCHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequ
 	return &pb.DeleteUserResponse{
 		Message: "User deleted successfully",
 	}, nil
+}
+
+func (h *UserGRPCHandler) CheckUserStatus(ctx context.Context, req *pb.CheckUserStatusRequest) (*pb.CheckUserStatusResponse, error) {
+	query := queries.GetUserStatusQuery{
+		ID: req.Id,
+	}
+	result, err := h.checkStatusQuery.Execute(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CheckUserStatusResponse{
+		IsActive: result.IsActive,
+		Role:     result.Role,
+	}, nil
+
 }
