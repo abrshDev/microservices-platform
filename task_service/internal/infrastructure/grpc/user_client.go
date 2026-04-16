@@ -93,6 +93,16 @@ func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResp
 	return result.(*user.UserResponse), nil
 }
 
+func (c *UserClient) CheckUserStatus(ctx context.Context, userID string) (*user.CheckUserStatusResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	resp, err := c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
+	if err != nil {
+		return nil, fmt.Errorf("gRPC call failed: %w", err)
+	}
+
+	return resp, nil
+}
 func (c *UserClient) Close() error {
 	return c.conn.Close()
 }
