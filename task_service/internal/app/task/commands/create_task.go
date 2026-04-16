@@ -35,14 +35,25 @@ func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.Use
 		logger:     logger,
 	}
 }
-
 func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) (*user.UserResponse, error) {
 	h.logger.Info("executing create task command",
 		slog.String("user_id", cmd.UserID),
 		slog.String("title", cmd.Title),
 	)
 
-	// 1. Verify user exists and get data via gRPC (Synchronous Permission)
+	statusResp, err := h.userClient.CheckUserStatus(ctx, cmd.UserID)
+	if err != nil {
+		h.logger.Error("gRPC CheckUserStatus failed", slog.String("error", err.Error()))
+		return nil, fmt.Errorf("validation error: %w", err)
+	}
+
+	if !statusResp.IsActive {
+		h.logger.Warn("user is inactive", slog.String("user_id", cmd.UserID))
+		return nil, fmt.Errorf("cannot create task: user %s is inactive", cmd.UserID)
+	} else {
+		h.logger.Info("user is active", slog.String("user_id", cmd.UserID))
+	}
+
 	userData, err := h.userClient.GetUser(ctx, cmd.UserID)
 	if err != nil {
 		h.logger.Error("failed to verify user via gRPC",
@@ -53,13 +64,10 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	}
 
 	if userData == nil {
-		h.logger.Warn("user not found during task creation",
-			slog.String("user_id", cmd.UserID),
-		)
+		h.logger.Warn("user not found during task creation", slog.String("user_id", cmd.UserID))
 		return nil, fmt.Errorf("user %s not found", cmd.UserID)
 	}
 
-	// 2. Parse UUID
 	parsedUserID, err := uuid.Parse(cmd.UserID)
 	if err != nil {
 		h.logger.Error("failed to parse user uuid",
@@ -69,7 +77,6 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		return nil, fmt.Errorf("invalid user uuid format: %w", err)
 	}
 
-	// 3. Create the task entity
 	task := &entities.Task{
 		ID:          uuid.New(),
 		UserID:      parsedUserID,
@@ -78,7 +85,6 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		Status:      "PENDING",
 	}
 
-	// 4. Save to repository (Postgres)
 	if err := h.repo.Create(ctx, task); err != nil {
 		h.logger.Error("failed to save task to database",
 			slog.String("task_id", task.ID.String()),
@@ -87,7 +93,6 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		return nil, err
 	}
 
-	// 5. Publish Event to Kafka (Asynchronous Announcement)
 	event := events.TaskCreatedEvent{
 		TaskID:      task.ID,
 		UserID:      task.UserID,
@@ -96,12 +101,11 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	}
 
 	if err := h.producer.PublishTaskCreated(ctx, event); err != nil {
-		// We log the error but don't fail the request since the DB save succeeded.
-		// In a production app, you might use an Outbox Pattern to retry this.
 		h.logger.Error("failed to publish task created event to kafka",
 			slog.String("task_id", task.ID.String()),
 			slog.String("error", err.Error()),
 		)
+
 	}
 
 	h.logger.Info("task created successfully and event published",
