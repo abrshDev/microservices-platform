@@ -13,7 +13,7 @@ func SetupRoutes(app *fiber.App, handler *handlers.UserHandler) {
 	api.Post("/login", handler.Login)
 	api.Post("/users", handler.CreateUser)
 
-	// Protected (Pass the secret here!)
+	// Protected
 	api.Get("/users/:id", middleware.Protected(), handler.GetUser)
 	api.Delete("/users/:id", middleware.Protected(), handler.DeleteUser)
 }
