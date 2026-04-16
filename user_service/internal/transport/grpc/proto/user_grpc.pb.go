@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v3.21.12
-// source: user.proto
+// source: schema/grpc/user.proto
 
 package proto
 
@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_GetUser_FullMethodName    = "/user.UserService/GetUser"
-	UserService_DeleteUser_FullMethodName = "/user.UserService/DeleteUser"
+	UserService_GetUser_FullMethodName         = "/user.UserService/GetUser"
+	UserService_DeleteUser_FullMethodName      = "/user.UserService/DeleteUser"
+	UserService_CheckUserStatus_FullMethodName = "/user.UserService/CheckUserStatus"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -29,9 +30,9 @@ const (
 //
 // The UserService defines the operations available over gRPC
 type UserServiceClient interface {
-	// GetUser allows other services to fetch user details by ID
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*UserResponse, error)
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*DeleteUserResponse, error)
+	CheckUserStatus(ctx context.Context, in *CheckUserStatusRequest, opts ...grpc.CallOption) (*CheckUserStatusResponse, error)
 }
 
 type userServiceClient struct {
@@ -62,15 +63,25 @@ func (c *userServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReques
 	return out, nil
 }
 
+func (c *userServiceClient) CheckUserStatus(ctx context.Context, in *CheckUserStatusRequest, opts ...grpc.CallOption) (*CheckUserStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckUserStatusResponse)
+	err := c.cc.Invoke(ctx, UserService_CheckUserStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
 //
 // The UserService defines the operations available over gRPC
 type UserServiceServer interface {
-	// GetUser allows other services to fetch user details by ID
 	GetUser(context.Context, *GetUserRequest) (*UserResponse, error)
 	DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error)
+	CheckUserStatus(context.Context, *CheckUserStatusRequest) (*CheckUserStatusResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -86,6 +97,9 @@ func (UnimplementedUserServiceServer) GetUser(context.Context, *GetUserRequest) 
 }
 func (UnimplementedUserServiceServer) DeleteUser(context.Context, *DeleteUserRequest) (*DeleteUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
+}
+func (UnimplementedUserServiceServer) CheckUserStatus(context.Context, *CheckUserStatusRequest) (*CheckUserStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckUserStatus not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -144,6 +158,24 @@ func _UserService_DeleteUser_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_CheckUserStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckUserStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).CheckUserStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_CheckUserStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).CheckUserStatus(ctx, req.(*CheckUserStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -159,7 +191,11 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteUser",
 			Handler:    _UserService_DeleteUser_Handler,
 		},
+		{
+			MethodName: "CheckUserStatus",
+			Handler:    _UserService_CheckUserStatus_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "user.proto",
+	Metadata: "schema/grpc/user.proto",
 }
