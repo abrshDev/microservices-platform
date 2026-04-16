@@ -48,3 +48,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*entitie
 	}
 	return &user, nil
 }
+func (r *userRepository) FindByID(ctx context.Context, id string) (*entities.User, error) {
+	var u entities.User
+
+	err := r.db.WithContext(ctx).First(&u, "id = ?", id).Error
+	return &u, err
+}
