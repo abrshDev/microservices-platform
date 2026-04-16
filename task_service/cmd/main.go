@@ -19,79 +19,85 @@ import (
 )
 
 func main() {
+	// load env vars
 	config.LoadEnv()
+
+	// logger
 	appLogger := logger.NewLogger("task-service")
 
-	// 1. Initialize Infrastructure (DB)
+	// db connection
 	db, err := postgres.NewConnection()
 	if err != nil {
 		log.Fatalf("Database connection failed: %v", err)
 	}
 
-	// 2. Initialize Infrastructure (Kafka)
+	// kafka setup
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
 	if kafkaBrokers == "" {
 		kafkaBrokers = "kafka:29092"
 	}
 	taskProducer := kafka.NewEventProducer([]string{kafkaBrokers}, "task-events")
 
-	// 3. Service Discovery Addresses
+	// user service address
 	userSvcAddr := os.Getenv("USER_SERVICE_ADDR")
 	if userSvcAddr == "" {
 		userSvcAddr = "user-service:50051"
 	}
 
-	// 4. Initialize gRPC Client
+	// grpc client
 	userClient, err := grpc.NewUserClient(userSvcAddr)
 	if err != nil {
 		log.Fatalf("Failed to initialize User gRPC client: %v", err)
 	}
 
-	// 5. Dependency Injection [cite: 71, 84]
+	// wire dependencies
 	taskRepo := postgres.NewTaskRepository(db)
 	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, taskProducer, appLogger)
 	getTaskQuery := queries.NewGetTaskHandler(taskRepo, userClient, appLogger)
 	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, appLogger)
 
-	// 6. Setup Server
+	// http server
 	app := fiber.New()
 	http.SetupRoutes(app, taskHandler)
 
-	// --- GRACEFUL SHUTDOWN LOGIC ---
+	// graceful shutdown setup
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// run server
 	go func() {
 		port := os.Getenv("TASK_APP_PORT")
 		if port == "" {
 			port = "8081"
 		}
-		log.Printf("Task Service is starting on port %s", port)
+
+		log.Printf("Task Service running on %s", port)
+
 		if err := app.Listen(":" + port); err != nil {
-			log.Printf("Fiber server stopped: %v", err)
+			log.Printf("Fiber stopped: %v", err)
 		}
 	}()
 
-	// Wait for the signal
+	// wait for shutdown signal
 	<-sigChan
-	log.Println("\nShutting down Task Service...")
+	log.Println("Shutting down...")
 
-	// 1. Shutdown Fiber
+	// stop http
 	if err := app.Shutdown(); err != nil {
 		log.Printf("Fiber shutdown failed: %v", err)
 	}
 
-	// 2. Close Kafka Producer [cite: 81]
+	// close kafka
 	if err := taskProducer.Close(); err != nil {
-		log.Printf("Kafka producer close failed: %v", err)
+		log.Printf("Kafka close failed: %v", err)
 	}
 
-	// 3. Close gRPC Client [cite: 32]
+	// close grpc
 	userClient.Close()
 
-	// 4. Close DB connection [cite: 40]
+	// close db
 	sqlDB, _ := db.DB()
 	sqlDB.Close()
 
-	log.Println("Task Service exited gracefully.")
+	log.Println("Exited cleanly")
 }
