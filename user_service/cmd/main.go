@@ -33,11 +33,12 @@ func main() {
 	getUserQuery := queries.NewGetUserHandler(userRepo)
 	deleteUserCmd := commands.NewDeleteUserHandler(userRepo)
 	loginQuery := queries.NewLoginHandler(userRepo)
+	checkStatusQuery := queries.NewCheckUserStatusHandler(userRepo)
 
 	// gRPC server
 
 	// Initialize gRPC Handler
-	userGrpcHandler := grpc_handlers.NewUserGRPCHandler(getUserQuery, deleteUserCmd)
+	userGrpcHandler := grpc_handlers.NewUserGRPCHandler(getUserQuery, deleteUserCmd, checkStatusQuery)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {

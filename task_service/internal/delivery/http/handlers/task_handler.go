@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log/slog" // Import slog
+	"log/slog"
 
 	"github.com/abrshDev/task-service/internal/app/task/commands"
 	"github.com/abrshDev/task-service/internal/app/task/queries"
@@ -11,7 +11,7 @@ import (
 type TaskHandler struct {
 	createTaskHandler *commands.CreateTaskHandler
 	GetTaskHandler    *queries.GetTaskHandler
-	logger            *slog.Logger // Add this line
+	logger            *slog.Logger
 }
 
 // Update the constructor to accept the logger
@@ -48,11 +48,9 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 	})
 }
 func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
-	// 1. Extract the ID from the URL path (/tasks/:id)
+
 	id := c.Params("id")
 
-	// 2. Execute the Query
-	// Note: We use c.UserContext() to pass the request context correctly
 	task, err := h.GetTaskHandler.Execute(c.Context(), queries.GetTaskQuery{
 		ID: id,
 	})
@@ -75,7 +73,7 @@ func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
 		})
 	}
 
-	// 4. Handle the "Not Found" case
+	// . Handle the "Not Found" case
 	if task == nil {
 		h.logger.Warn("task lookup returned no results", slog.String("task_id", id))
 		return c.Status(404).JSON(fiber.Map{
@@ -83,6 +81,6 @@ func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
 		})
 	}
 
-	// 5. Success - Return the merged Task + User data
+	// Return the merged Task + User data
 	return c.Status(200).JSON(task)
 }

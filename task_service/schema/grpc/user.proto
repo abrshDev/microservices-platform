@@ -6,10 +6,12 @@ option go_package = "github.com/abrshDev/user-service/internal/transport/grpc/pr
 
 // The UserService defines the operations available over gRPC
 service UserService {
-  // GetUser allows other services to fetch user details by ID
+  
   rpc GetUser(GetUserRequest) returns (UserResponse);
 
    rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+   rpc CheckUserStatus(CheckUserStatusRequest) returns (CheckUserStatusResponse);
 }
 
 // The request message containing the User UUID
@@ -31,4 +33,13 @@ message DeleteUserRequest {
 
 message DeleteUserResponse {
   string message = 1;
+}
+
+message CheckUserStatusRequest{
+    string id = 1;
+}
+
+message CheckUserStatusResponse{
+  bool is_active = 1;
+  string role=2;
 }
