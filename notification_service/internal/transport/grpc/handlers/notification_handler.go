@@ -23,7 +23,7 @@ func (h *NotificationGRPCHandler) SendNotification(ctx context.Context, req *not
 		Type:    req.Type,
 	}
 
-	if err := h.sendHandler.Handle(ctx, cmd); err != nil {
+	if err := h.sendHandler.Execute(ctx, cmd); err != nil {
 		return &notification.NotificationResponse{Success: false}, err
 	}
 

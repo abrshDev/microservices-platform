@@ -58,7 +58,7 @@ func (c *NotificationConsumer) Start(ctx context.Context) {
 			Type:    "TASK_ALERT",
 		}
 
-		if err := c.sendHandler.Handle(ctx, cmd); err != nil {
+		if err := c.sendHandler.Execute(ctx, cmd); err != nil {
 			c.logger.Error("handler failed", slog.String("error", err.Error()))
 		}
 	}
