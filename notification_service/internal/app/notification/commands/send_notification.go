@@ -21,7 +21,7 @@ func NewSendNotificationHandler(logger *slog.Logger) *SendNotificationHandler {
 	return &SendNotificationHandler{logger: logger}
 }
 
-func (h *SendNotificationHandler) Handle(ctx context.Context, cmd SendNotificationCommand) error {
+func (h *SendNotificationHandler) Execute(ctx context.Context, cmd SendNotificationCommand) error {
 	n := enitities.NewTaskNotification(cmd.UserID, cmd.Message)
 
 	h.logger.Info("Executing notification delivery",

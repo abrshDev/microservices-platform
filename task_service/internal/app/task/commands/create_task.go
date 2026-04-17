@@ -10,7 +10,6 @@ import (
 	"github.com/abrshDev/task-service/internal/domain/repositories"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc"
 	"github.com/abrshDev/task-service/internal/infrastructure/kafka"
-	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user"
 	"github.com/google/uuid"
 )
 
@@ -35,7 +34,17 @@ func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.Use
 		logger:     logger,
 	}
 }
-func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) (*user.UserResponse, error) {
+
+func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) (*entities.Task, error) {
+	parsedUserID, err := uuid.Parse(cmd.UserID)
+	if err != nil {
+		h.logger.Error("failed to parse user uuid",
+			slog.String("user_id", cmd.UserID),
+			slog.String("error", err.Error()),
+		)
+		return nil, fmt.Errorf("invalid user uuid format: %w", err)
+	}
+
 	h.logger.Info("executing create task command",
 		slog.String("user_id", cmd.UserID),
 		slog.String("title", cmd.Title),
@@ -50,9 +59,8 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	if !statusResp.IsActive {
 		h.logger.Warn("user is inactive", slog.String("user_id", cmd.UserID))
 		return nil, fmt.Errorf("cannot create task: user %s is inactive", cmd.UserID)
-	} else {
-		h.logger.Info("user is active", slog.String("user_id", cmd.UserID))
 	}
+	h.logger.Info("user is active")
 
 	userData, err := h.userClient.GetUser(ctx, cmd.UserID)
 	if err != nil {
@@ -66,15 +74,6 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	if userData == nil {
 		h.logger.Warn("user not found during task creation", slog.String("user_id", cmd.UserID))
 		return nil, fmt.Errorf("user %s not found", cmd.UserID)
-	}
-
-	parsedUserID, err := uuid.Parse(cmd.UserID)
-	if err != nil {
-		h.logger.Error("failed to parse user uuid",
-			slog.String("user_id", cmd.UserID),
-			slog.String("error", err.Error()),
-		)
-		return nil, fmt.Errorf("invalid user uuid format: %w", err)
 	}
 
 	task := &entities.Task{
@@ -105,7 +104,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 			slog.String("task_id", task.ID.String()),
 			slog.String("error", err.Error()),
 		)
-
+		return task, fmt.Errorf("task created but failed to publish event: %w", err)
 	}
 
 	h.logger.Info("task created successfully and event published",
@@ -113,5 +112,5 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		slog.String("assigned_to", userData.Username),
 	)
 
-	return userData, nil
+	return task, nil
 }
