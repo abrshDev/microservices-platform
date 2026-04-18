@@ -8,6 +8,7 @@ import (
 	"github.com/abrshDev/user-service/internal/app/user/queries"
 	"github.com/abrshDev/user-service/internal/delivery/http"
 	http_handlers "github.com/abrshDev/user-service/internal/delivery/http/handlers"
+	"github.com/abrshDev/user-service/internal/infrastructure/config"
 	"github.com/abrshDev/user-service/internal/infrastructure/database/postgres"
 
 	// gRPC Imports
@@ -20,6 +21,7 @@ import (
 
 func main() {
 	// 1. Database Connection
+	config.LoadEnv()
 	db, err := postgres.NewConnection()
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)

@@ -53,6 +53,7 @@ func (c *NotificationConsumer) Start(ctx context.Context) {
 
 		// Logic Change: Use the Command Handler instead of fmt.Printf
 		cmd := commands.SendNotificationCommand{
+			TaskID:  event.TaskID.String(),
 			UserID:  event.UserID.String(),
 			Message: "New Task Created: " + event.Title,
 			Type:    "TASK_ALERT",
