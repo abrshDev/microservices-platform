@@ -3,6 +3,8 @@ package config
 import (
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type AuthConfig struct {
@@ -18,5 +20,12 @@ func LoadAuthConfig() *AuthConfig {
 
 	return &AuthConfig{
 		JWTSecret: secret,
+	}
+}
+func LoadEnv() {
+
+	err := godotenv.Load("../../.env")
+	if err != nil {
+		log.Println("Note: .env not found, using system environment variables")
 	}
 }
