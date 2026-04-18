@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/abrshDev/notification_service/internal/app/notification/commands"
+	"github.com/abrshDev/notification_service/internal/infrastructure/config"
+	"github.com/abrshDev/notification_service/internal/infrastructure/database/postgres"
 	"github.com/abrshDev/notification_service/internal/infrastructure/kafka" // Ensure this path matches your folder
 	"github.com/abrshDev/notification_service/internal/transport/grpc/handlers"
 	"github.com/abrshDev/notification_service/internal/transport/grpc/proto/notification"
@@ -16,6 +18,13 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	config.LoadEnv()
+	db, err := postgres.NewConnection()
+	if err != nil {
+		logger.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("Database connection and migrations successful", db)
 	sendHandler := commands.NewSendNotificationHandler(logger)
 	// 1. Initialize Infrastructure (Kafka Consumer)
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
