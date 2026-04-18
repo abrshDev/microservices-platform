@@ -64,12 +64,16 @@ services:
   notification-db:
     image: postgres:15-alpine
     container_name: notification-serviceDb
+    ports:
+      - 5436:5432
     environment:
       - POSTGRES_USER=${NOTIFICATION_DB_USER}
       - POSTGRES_PASSWORD=${NOTIFICATION_DB_PASSWORD}
       - POSTGRES_DB=${NOTIFICATION_DB_NAME}
     networks:
       - microservice-network
+    volumes:
+      - notification_postgres_data:/var/lib/postgresql/data
 
   notification-service:
     build: ./notification_service
