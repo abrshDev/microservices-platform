@@ -1,4 +1,4 @@
-package enitities
+package entities
 
 import "fmt"
 
