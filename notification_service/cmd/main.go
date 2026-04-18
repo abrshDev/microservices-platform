@@ -24,8 +24,9 @@ func main() {
 		logger.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Database connection and migrations successful", db)
-	sendHandler := commands.NewSendNotificationHandler(logger)
+	logger.Info("Database connection and migrations successful")
+	repo := postgres.NewEventRepository(db)
+	sendHandler := commands.NewSendNotificationHandler(logger, repo)
 	// 1. Initialize Infrastructure (Kafka Consumer)
 	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
 	if kafkaBrokers == "" {
