@@ -14,7 +14,7 @@ func NewConnection() (*gorm.DB, error) {
 		os.Getenv("REPORTING_DB_HOST"),
 		os.Getenv("REPORTING_DB_USER"),
 		os.Getenv("REPORTING_DB_PASSWORD"),
-		os.Getenv("REPORTING_NAME"),
+		os.Getenv("REPORTING_DB_NAME"),
 		os.Getenv("REPORTING_DB_PORT"),
 	)
 
