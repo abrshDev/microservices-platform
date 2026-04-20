@@ -90,6 +90,33 @@ services:
     networks:
       - microservice-network
   
+  # --REPORTING SERVICE ---
+  reporting-service:
+   build: ./reporting-service
+   container_name: reporting-service-app
+   env_file:
+    - .env
+   ports:
+    - "8083:8083" 
+   depends_on:
+      - reporting-db
+      - kafka
+   restart: on-failure
+   networks:
+      - microservice-network
+  
+  reporting-db:
+    image: postgres:latest
+    container_name: reporting-db
+    environment:
+      - POSTGRES_USER=${REPORTING_DB_USER}
+      - POSTGRES_PASSWORD=${REPORTING_DB_PASSWORD}
+      - POSTGRES_DB=${REPORTING_DB_NAME}
+    networks:
+      - microservice-network
+    volumes:
+      - reporting_postgres_data:/var/lib/postgresql/data
+
   # --- KAFKA INFRASTRUCTURE ---
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -123,3 +150,4 @@ volumes:
   user_postgres_data:
   task_postgres_data:
   notification_postgres_data:
+  reporting_postgres_data:
