@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 
 	"github.com/abrshDev/user-service/internal/app/user/commands"
 	"github.com/abrshDev/user-service/internal/app/user/queries"
@@ -10,6 +11,7 @@ import (
 	http_handlers "github.com/abrshDev/user-service/internal/delivery/http/handlers"
 	"github.com/abrshDev/user-service/internal/infrastructure/config"
 	"github.com/abrshDev/user-service/internal/infrastructure/database/postgres"
+	"github.com/abrshDev/user-service/internal/infrastructure/kafka" // Kafka infrastructure
 
 	// gRPC Imports
 	grpc_handlers "github.com/abrshDev/user-service/internal/transport/grpc/handlers"
@@ -20,38 +22,40 @@ import (
 )
 
 func main() {
-	// 1. Database Connection
+	// 1. Load configuration and connect to Postgres
 	config.LoadEnv()
 	db, err := postgres.NewConnection()
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	// 2. Repository Initialization
+	// 2. Setup Kafka Producer for user events
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "kafka:29092"
+	}
+	userProducer := kafka.NewUserProducer([]string{kafkaBrokers})
+
+	// 3. Initialize Repositories
 	userRepo := postgres.NewUserRepository(db)
 
-	// 3. CQRS Handlers (Commands & Queries)
-	createUserCmd := commands.NewCreateUserHandler(userRepo)
+	// 4. Initialize CQRS Handlers (Injecting the producer into CreateUser)
+	createUserCmd := commands.NewCreateUserHandler(userRepo, userProducer)
 	getUserQuery := queries.NewGetUserHandler(userRepo)
 	deleteUserCmd := commands.NewDeleteUserHandler(userRepo)
 	loginQuery := queries.NewLoginHandler(userRepo)
 	checkStatusQuery := queries.NewCheckUserStatusHandler(userRepo)
 
-	// gRPC server
-
-	// Initialize gRPC Handler
+	// 5. Setup gRPC Server
 	userGrpcHandler := grpc_handlers.NewUserGRPCHandler(getUserQuery, deleteUserCmd, checkStatusQuery)
-
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatalf("failed to listen for gRPC: %v", err)
 	}
 
-	// Create gRPC Server and Register the Service
 	grpcServer := grpc.NewServer()
 	pb.RegisterUserServiceServer(grpcServer, userGrpcHandler)
 
-	// Start gRPC
 	go func() {
 		log.Println("gRPC server listening on :50051")
 		if err := grpcServer.Serve(lis); err != nil {
@@ -59,15 +63,11 @@ func main() {
 		}
 	}()
 
-	// REST API SETUP
-
+	// 6. Setup REST API (Fiber)
 	userHttpHandler := http_handlers.NewUserHandler(createUserCmd, getUserQuery, deleteUserCmd, loginQuery)
-
 	app := fiber.New()
-
 	http.SetupRoutes(app, userHttpHandler)
 
-	// Start Fiber (Blocking call)
 	log.Println("REST server listening on :8080")
 	log.Fatal(app.Listen(":8080"))
 }
