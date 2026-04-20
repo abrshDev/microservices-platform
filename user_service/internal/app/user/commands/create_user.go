@@ -6,6 +6,7 @@ import (
 	"github.com/abrshDev/user-service/internal/domain/entities"
 	domErrors "github.com/abrshDev/user-service/internal/domain/errors"
 	"github.com/abrshDev/user-service/internal/domain/repositories"
+	"github.com/abrshDev/user-service/internal/infrastructure/kafka"
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -15,23 +16,31 @@ var validate = validator.New()
 type CreateUserRequest struct {
 	Username string `json:"username" validate:"required,min=3,max=32"`
 	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,max=72"` // 72 is Bcrypt's max limit
+	Password string `json:"password" validate:"required,min=8,max=72"`
 }
 
 type CreateUserHandler struct {
-	repo repositories.UserRepository
+	repo     repositories.UserRepository
+	producer *kafka.UserProducer
 }
 
-func NewCreateUserHandler(repo repositories.UserRepository) *CreateUserHandler {
-	return &CreateUserHandler{repo: repo}
+func NewCreateUserHandler(repo repositories.UserRepository, producer *kafka.UserProducer) *CreateUserHandler {
+	return &CreateUserHandler{repo: repo, producer: producer}
 }
 
 func (h *CreateUserHandler) Execute(ctx context.Context, req CreateUserRequest) error {
+	// 1. Validate input
 	if err := validate.Struct(req); err != nil {
 		return err
 	}
+
+	// 2. Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	// Check if user exists
+	if err != nil {
+		return err
+	}
+
+	// 3. Check for existing user
 	existing, err := h.repo.GetByEmail(ctx, req.Email)
 	if err == nil && existing != nil {
 		return domErrors.ErrEmailAlreadyInUse
@@ -43,5 +52,12 @@ func (h *CreateUserHandler) Execute(ctx context.Context, req CreateUserRequest) 
 		Password: string(hashedPassword),
 	}
 
-	return h.repo.Create(ctx, user)
+	// 4. Save to User Database
+	if err := h.repo.Create(ctx, user); err != nil {
+		return err
+	}
+
+	// 5. Tell the world (Kafka) a new user was created
+	// This is what the Reporting Service is waiting for
+	return h.producer.PublishUserCreated(ctx, user.ID, user.Email)
 }
