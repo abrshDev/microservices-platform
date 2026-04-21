@@ -92,7 +92,7 @@ services:
   
   # --REPORTING SERVICE ---
   reporting-service:
-   build: ./reporting-service
+   build: ./reporting_service
    container_name: reporting-service-app
    env_file:
     - .env
@@ -108,6 +108,8 @@ services:
   reporting-db:
     image: postgres:latest
     container_name: reporting-db
+    ports:
+      - 5437:5432
     environment:
       - POSTGRES_USER=${REPORTING_DB_USER}
       - POSTGRES_PASSWORD=${REPORTING_DB_PASSWORD}
@@ -115,7 +117,7 @@ services:
     networks:
       - microservice-network
     volumes:
-      - reporting_postgres_data:/var/lib/postgresql/data
+      - reporting_postgres_data:/var/lib/postgresql
 
   # --- KAFKA INFRASTRUCTURE ---
   zookeeper:
