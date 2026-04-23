@@ -23,9 +23,17 @@ func LoadAuthConfig() *AuthConfig {
 	}
 }
 func LoadEnv() {
-
-	err := godotenv.Load("../../.env")
-	if err != nil {
-		log.Println("Note: .env not found, using system environment variables")
+	paths := []string{
+		".env",
+		"../.env",
 	}
+
+	for _, path := range paths {
+		if err := godotenv.Load(path); err == nil {
+			log.Printf("Loaded environment from %s", path)
+			return
+		}
+	}
+
+	log.Println("Using existing environment variables")
 }
