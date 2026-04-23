@@ -1,8 +1,5 @@
-version: '3.8'
-
 services:
-  # --- USER SERVICE ---
-  db: 
+  db:
     image: postgres:15-alpine
     container_name: user-serviceDb
     environment:
@@ -10,11 +7,16 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
     ports:
-      - "5432:5432" 
+      - "5432:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   user-service:
     build: ./user_service
@@ -25,12 +27,14 @@ services:
       - "8080:8080"
       - "50051:50051"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     restart: on-failure
     networks:
       - microservice-network
 
-  # --- TASK SERVICE ---
   task-db:
     image: postgres:15-alpine
     container_name: task-serviceDb
@@ -44,6 +48,11 @@ services:
       - task_postgres_data:/var/lib/postgresql/data
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   task-service:
     build: ./task_service
@@ -53,27 +62,34 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      - task-db
-      - user-service
-      - notification-service
+      task-db:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      kafka:
+        condition: service_healthy
     restart: on-failure
     networks:
       - microservice-network
 
-  # --- NOTIFICATION SERVICE ---
   notification-db:
     image: postgres:15-alpine
     container_name: notification-serviceDb
-    ports:
-      - 5436:5432
     environment:
       - POSTGRES_USER=${NOTIFICATION_DB_USER}
       - POSTGRES_PASSWORD=${NOTIFICATION_DB_PASSWORD}
       - POSTGRES_DB=${NOTIFICATION_DB_NAME}
-    networks:
-      - microservice-network
+    ports:
+      - "5436:5432"
     volumes:
       - notification_postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   notification-service:
     build: ./notification_service
@@ -84,42 +100,49 @@ services:
       - "8082:8082"
       - "50052:50052"
     depends_on:
-      - notification-db
-      - kafka
+      notification-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     restart: on-failure
     networks:
       - microservice-network
-  
-  # --REPORTING SERVICE ---
-  reporting-service:
-   build: ./reporting_service
-   container_name: reporting-service-app
-   env_file:
-    - .env
-   ports:
-    - "8083:8083" 
-   depends_on:
-      - reporting-db
-      - kafka
-   restart: on-failure
-   networks:
-      - microservice-network
-  
+
   reporting-db:
-    image: postgres:latest
+    image: postgres:15-alpine
     container_name: reporting-db
-    ports:
-      - 5437:5432
     environment:
       - POSTGRES_USER=${REPORTING_DB_USER}
       - POSTGRES_PASSWORD=${REPORTING_DB_PASSWORD}
       - POSTGRES_DB=${REPORTING_DB_NAME}
+    ports:
+      - "5437:5432"
+    volumes:
+      - reporting_postgres_data:/var/lib/postgresql/data
     networks:
       - microservice-network
-    volumes:
-      - reporting_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # --- KAFKA INFRASTRUCTURE ---
+  reporting-service:
+    build: ./reporting_service
+    container_name: reporting-service-app
+    env_file:
+      - .env
+    ports:
+      - "8083:8083"
+    depends_on:
+      reporting-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - microservice-network
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     environment:
@@ -141,8 +164,16 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: ERROR
     networks:
       - microservice-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
 networks:
   microservice-network:
