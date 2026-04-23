@@ -1,34 +1,54 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"os"
 
+	"github.com/abrshDev/reporting-service/internal/app/report/queries"
+	"github.com/abrshDev/reporting-service/internal/delivery/http"
+	"github.com/abrshDev/reporting-service/internal/delivery/http/handlers"
 	"github.com/abrshDev/reporting-service/internal/infrastructure/config"
 	"github.com/abrshDev/reporting-service/internal/infrastructure/database/postgres"
+	"github.com/abrshDev/reporting-service/internal/infrastructure/kafka"
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
-	// Load variables from .env
 	config.LoadEnv()
 
-	// Connect to DB and run migrations
 	db, err := postgres.NewConnection()
-	fmt.Println("db:", db)
 	if err != nil {
 		log.Fatalf("DB connection failed: %v", err)
 	}
 
-	// Simple Fiber app to check status
+	summaryRepo := postgres.NewSummaryRepository(db)
+
+	// Setup Queries
+	getSummaryQuery := queries.NewGetSummaryQuery(summaryRepo)
+	brokers := os.Getenv("KAFKA_BROKERS")
+	if brokers == "" {
+		brokers = "kafka:29092"
+	}
+	// Kafka Consumer
+	go func() {
+
+		kafka.StartConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo)
+	}()
+	go func() {
+		go func() {
+			kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo)
+		}()
+	}()
+
 	app := fiber.New()
 
-	// Basic route to verify service is alive
+	// Setup Handlers and Router
+	reportHandler := handlers.NewReportHandler(getSummaryQuery)
+	http.SetupRoutes(app, reportHandler)
+
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.SendString("Reporting Service is Online")
 	})
 
-	// Start server on port 8083
-	log.Println("Reporting REST server starting on :8083")
 	log.Fatal(app.Listen(":8083"))
 }
