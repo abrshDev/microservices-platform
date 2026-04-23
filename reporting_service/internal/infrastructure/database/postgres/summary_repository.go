@@ -23,3 +23,12 @@ func (r *SummaryRepository) UpsertSummary(summary entities.UserTaskSummary) erro
 		}),
 	}).Create(&summary).Error
 }
+
+func (r *SummaryRepository) GetSummary(userID uint, tenantID uint) (*entities.UserTaskSummary, error) {
+	var summary entities.UserTaskSummary
+	err := r.db.Where("user_id = ? AND tenant_id = ?", userID, tenantID).First(&summary).Error
+	if err != nil {
+		return nil, err
+	}
+	return &summary, nil
+}
