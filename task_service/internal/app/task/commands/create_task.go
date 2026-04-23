@@ -79,6 +79,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	task := &entities.Task{
 		ID:          uuid.New(),
 		UserID:      parsedUserID,
+		TenantID:    uint(userData.TenantId),
 		Title:       cmd.Title,
 		Description: cmd.Description,
 		Status:      "PENDING",
@@ -95,6 +96,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	event := events.TaskCreatedEvent{
 		TaskID:      task.ID,
 		UserID:      task.UserID,
+		TenantID:    task.TenantID,
 		Title:       task.Title,
 		Description: task.Description,
 	}
