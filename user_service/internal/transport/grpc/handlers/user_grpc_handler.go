@@ -40,6 +40,7 @@ func (h *UserGRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (
 		Id:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
+		TenantId: uint32(user.TenantID),
 	}, nil
 }
 func (h *UserGRPCHandler) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
