@@ -14,6 +14,7 @@ type User struct {
 	Password  string         `gorm:"not null" json:"-"`
 	IsActive  bool           `gorm:"default:true" json:"is_active"`
 	Role      string         `gorm:"default:user" json:"role"`
+	TenantID  uint           `gorm:"index;not null"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"` // Enables soft deletes
