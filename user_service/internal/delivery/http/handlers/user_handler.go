@@ -35,7 +35,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	if err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
-			// Suggestion: return the actual validation details we built earlier
+
 			return c.Status(400).JSON(fiber.Map{"error": "Validation failed"})
 		}
 
