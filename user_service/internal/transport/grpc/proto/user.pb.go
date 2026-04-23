@@ -72,6 +72,7 @@ type UserResponse struct {
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	TenantId      uint32                 `protobuf:"varint,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -125,6 +126,13 @@ func (x *UserResponse) GetEmail() string {
 		return x.Email
 	}
 	return ""
+}
+
+func (x *UserResponse) GetTenantId() uint32 {
+	if x != nil {
+		return x.TenantId
+	}
+	return 0
 }
 
 type DeleteUserRequest struct {
@@ -317,11 +325,12 @@ const file_schema_grpc_user_proto_rawDesc = "" +
 	"\n" +
 	"\x16schema/grpc/user.proto\x12\x04user\" \n" +
 	"\x0eGetUserRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"P\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"m\n" +
 	"\fUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\"#\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12\x1b\n" +
+	"\ttenant_id\x18\x04 \x01(\rR\btenantId\"#\n" +
 	"\x11DeleteUserRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\".\n" +
 	"\x12DeleteUserResponse\x12\x18\n" +

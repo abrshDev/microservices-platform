@@ -21,12 +21,20 @@ func NewUserProducer(brokers []string) *UserProducer {
 	}
 }
 
-func (p *UserProducer) PublishUserCreated(ctx context.Context, userID string, email string) error {
-	msg := map[string]string{
+func (p *UserProducer) PublishUserCreated(ctx context.Context, userID string, email string, tenantID uint) error {
+	msg := map[string]interface{}{
 		"event_type": "UserCreated",
 		"user_id":    userID,
 		"email":      email,
+		"tenant_id":  tenantID,
 	}
-	payload, _ := json.Marshal(msg)
-	return p.Writer.WriteMessages(ctx, kafka.Message{Value: payload})
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	return p.Writer.WriteMessages(ctx, kafka.Message{
+		Value: payload,
+	})
 }

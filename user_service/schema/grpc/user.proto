@@ -24,6 +24,7 @@ message UserResponse {
   string id = 1;
   string username = 2;
   string email = 3;
+  uint32 tenant_id = 4;
 }
 
 
