@@ -6,11 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/abrshDev/task-service/internal/domain/repositories"
-	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user" // Adjust path to your proto
+	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user"
 	"github.com/google/uuid"
 )
 
-// SENIOR MOVE: Define an interface so we can Mock the gRPC client
 type UserClientInterface interface {
 	GetUser(ctx context.Context, userID string) (*user.UserResponse, error)
 }
