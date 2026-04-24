@@ -15,6 +15,6 @@ func NewGetSummaryQuery(repo repositories.SummaryRepo) *GetSummaryQuery {
 	return &GetSummaryQuery{repo: repo}
 }
 
-func (q *GetSummaryQuery) Execute(ctx context.Context, userID uint, tenantID uint) (*entities.UserTaskSummary, error) {
+func (q *GetSummaryQuery) Execute(ctx context.Context, userID string, tenantID uint64) (*entities.UserTaskSummary, error) {
 	return q.repo.GetSummary(userID, tenantID)
 }
