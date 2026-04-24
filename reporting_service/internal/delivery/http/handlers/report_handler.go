@@ -16,10 +16,12 @@ func NewReportHandler(query *queries.GetSummaryQuery) *ReportHandler {
 }
 
 func (h *ReportHandler) GetUserSummary(c *fiber.Ctx) error {
-	tID, _ := strconv.Atoi(c.Params("tenantId"))
-	uID, _ := strconv.Atoi(c.Params("userId"))
 
-	summary, err := h.query.Execute(c.Context(), uint(uID), uint(tID))
+	tID, _ := strconv.ParseUint(c.Params("tenantId"), 10, 64)
+
+	uID := c.Params("userId")
+
+	summary, err := h.query.Execute(c.Context(), uID, tID)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "Summary not found"})
 	}
