@@ -16,7 +16,7 @@ func NewSyncTaskHandler(repo repositories.SummaryRepo) *SyncTaskHandler {
 	return &SyncTaskHandler{repo: repo}
 }
 
-func (h *SyncTaskHandler) Execute(ctx context.Context, userID uint, tenantID uint) error {
+func (h *SyncTaskHandler) Execute(ctx context.Context, userID string, tenantID uint64) error {
 	summary := entities.UserTaskSummary{
 		UserID:     userID,
 		TenantID:   tenantID,

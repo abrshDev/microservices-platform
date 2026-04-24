@@ -12,14 +12,14 @@ import (
 )
 
 type TaskEvent struct {
-	UserID    uint      `json:"user_id"`
-	TenantID  uint      `json:"tenant_id"`
+	UserID    string    `json:"user_id"`
+	TenantID  uint64    `json:"tenant_id"`
 	Action    string    `json:"action"`
 	Timestamp time.Time `json:"timestamp"`
 }
 type UserEvent struct {
-	ID        uint      `json:"id"`
-	TenantID  uint      `json:"tenant_id"`
+	ID        string    `json:"user_id"`
+	TenantID  uint64    `json:"tenant_id"`
 	Email     string    `json:"email"`
 	Action    string    `json:"action"`
 	Timestamp time.Time `json:"timestamp"`
@@ -73,7 +73,7 @@ func StartConsumer(brokers []string, topic string, groupID string, repo reposito
 			continue
 		}
 
-		log.Printf("Successfully processed event for User %d (Tenant %d)", event.UserID, event.TenantID)
+		log.Printf("Successfully processed event for User %s (Tenant %d)", event.UserID, event.TenantID)
 	}
 }
 func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
@@ -104,6 +104,6 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 			log.Printf("Error initializing user summary: %v", err)
 			continue
 		}
-		log.Printf("Reporting Service: Created initial record for User %d", event.ID)
+		log.Printf("Reporting Service: Created initial record for User %s", event.ID)
 	}
 }
