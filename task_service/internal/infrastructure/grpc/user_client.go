@@ -28,14 +28,13 @@ func NewUserClient(address string) (*UserClient, error) {
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
-	// 3. Initialize the Circuit Breaker settings
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "user-service-breaker",
 		MaxRequests: 3,                // Max requests allowed when "half-open"
 		Interval:    5 * time.Second,  // Reset interval
 		Timeout:     10 * time.Second, // How long to stay "Open" before trying again
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			// Trip if we fail 5 times in a row
+
 			return counts.ConsecutiveFailures > 5
 		},
 	})
@@ -43,12 +42,12 @@ func NewUserClient(address string) (*UserClient, error) {
 	return &UserClient{
 		client:  user.NewUserServiceClient(conn),
 		conn:    conn,
-		breaker: cb, // 4. Assign it
+		breaker: cb,
 	}, nil
 }
 
 func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
-	// 5. Wrap your logic inside the breaker's Execute function
+
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		var lastErr error
 		maxRetries := 3
