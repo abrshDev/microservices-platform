@@ -79,7 +79,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	task := &entities.Task{
 		ID:          uuid.New(),
 		UserID:      parsedUserID,
-		TenantID:    uint(userData.TenantId),
+		TenantID:    uint64(userData.TenantId),
 		Title:       cmd.Title,
 		Description: cmd.Description,
 		Status:      "PENDING",
@@ -101,7 +101,7 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		Description: task.Description,
 	}
 
-	if err := h.producer.PublishTaskCreated(ctx, event); err != nil {
+	if err := h.producer.PublishTaskCreated(ctx, parsedUserID.String(), event); err != nil {
 		h.logger.Error("failed to publish task created event to kafka",
 			slog.String("task_id", task.ID.String()),
 			slog.String("error", err.Error()),

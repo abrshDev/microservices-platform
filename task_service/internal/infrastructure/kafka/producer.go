@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/abrshDev/task-service/internal/domain/events"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -23,13 +24,17 @@ func NewEventProducer(brokers []string, topic string) *EventProducer {
 	}
 }
 
-func (p *EventProducer) PublishTaskCreated(ctx context.Context, event interface{}) error {
+func (p *EventProducer) PublishTaskCreated(ctx context.Context, userID string, event events.TaskCreatedEvent) error {
+
+	event.Action = "TASK_CREATED"
+
 	messageBytes, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 
 	return p.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(userID), // Guarantees order for this specific user
 		Value: messageBytes,
 	})
 }
