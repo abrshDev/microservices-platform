@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS audit_logs(
     previous_total INTEGER NOT NULL,
     new_total INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-)
+);
+
 CREATE INDEX idx_audit_user_tenant ON audit_logs(user_id, tenant_id);
