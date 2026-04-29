@@ -21,7 +21,7 @@ type Task struct {
 	Title       string    `gorm:"not null"`
 	Description string
 	Status      TaskStatus `gorm:"type:varchar(20);default:'PENDING'"`
-	TenantID    uint       `json:"tenant_id" gorm:"index"`
+	TenantID    uint64     `json:"tenant_id" gorm:"index"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

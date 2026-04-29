@@ -32,7 +32,7 @@ func main() {
 	// Kafka Consumer
 	go func() {
 
-		kafka.StartConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo)
+		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo)
 	}()
 	go func() {
 		go func() {
