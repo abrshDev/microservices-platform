@@ -17,7 +17,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
-      start_period: 45s 
+      start_period: 55s 
 
   user-service:
     build: ./user_service
@@ -51,9 +51,10 @@ services:
       - microservice-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
 
   task-service:
     build: ./task_service
