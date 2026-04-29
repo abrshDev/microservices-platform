@@ -6,42 +6,26 @@ import (
 	"log"
 	"time"
 
-	"github.com/abrshDev/reporting-service/internal/domain/entities"
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
 	"github.com/segmentio/kafka-go"
 )
 
 type TaskEvent struct {
+	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
 	TenantID  uint64    `json:"tenant_id"`
 	Action    string    `json:"action"`
 	Timestamp time.Time `json:"timestamp"`
 }
 type UserEvent struct {
-	ID        string    `json:"user_id"`
+	UserID    string    `json:"user_id"`
 	TenantID  uint64    `json:"tenant_id"`
 	Email     string    `json:"email"`
 	Action    string    `json:"action"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func (e *TaskEvent) MapToEntity() entities.UserTaskSummary {
-	return entities.UserTaskSummary{
-		UserID:     e.UserID,
-		TenantID:   e.TenantID,
-		TotalTasks: 1,
-		UpdatedAt:  e.Timestamp,
-	}
-}
-func (e *UserEvent) MapToEntity() entities.UserTaskSummary {
-	return entities.UserTaskSummary{
-		UserID:     e.ID,
-		TenantID:   e.TenantID,
-		TotalTasks: 0,
-		UpdatedAt:  e.Timestamp,
-	}
-}
-func StartConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
+func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
@@ -67,13 +51,23 @@ func StartConsumer(brokers []string, topic string, groupID string, repo reposito
 			continue
 		}
 
-		summary := event.MapToEntity()
-		if err := repo.UpsertSummary(summary); err != nil {
-			log.Printf("Error updating summary in DB: %v", err)
-			continue
+		change := 0
+		if event.Action == "TASK_CREATED" {
+			change = 1
+		} else if event.Action == "TASK_DELETED" {
+			change = -1
 		}
 
-		log.Printf("Successfully processed event for User %s (Tenant %d)", event.UserID, event.TenantID)
+		if change != 0 {
+
+			err := repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
+			if err != nil {
+				log.Printf("Failed to process audit update: %v", err)
+				continue
+			}
+		}
+
+		log.Printf("Processed %s for User %s", event.Action, event.UserID)
 	}
 }
 func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
@@ -99,11 +93,12 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 			continue
 		}
 
-		summary := event.MapToEntity()
-		if err := repo.UpsertSummary(summary); err != nil {
-			log.Printf("Error initializing user summary: %v", err)
+		// Use the audit method with 0 change to initialize the user safely
+		err = repo.UpdateWithAudit(event.UserID, event.TenantID, 0, "USER_REGISTERED")
+		if err != nil {
+			log.Printf("Error initializing user summary with audit: %v", err)
 			continue
 		}
-		log.Printf("Reporting Service: Created initial record for User %s", event.ID)
+		log.Printf("Reporting Service: Created initial record for User %s", event.UserID)
 	}
 }
