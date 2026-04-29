@@ -17,7 +17,7 @@ type SummaryRepository struct {
 func NewSummaryRepository(db *gorm.DB) repositories.SummaryRepo {
 	return &SummaryRepository{db: db}
 }
-func (r *SummaryRepository) UpdateWithAudit(userID string, tenantID uint64, change int) error {
+func (r *SummaryRepository) UpdateWithAudit(userID string, tenantID uint64, change int, actionType string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var summary entities.UserTaskSummary
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -41,7 +41,7 @@ func (r *SummaryRepository) UpdateWithAudit(userID string, tenantID uint64, chan
 			ID:            uuid.New(),
 			UserID:        userID,
 			TenantID:      tenantID,
-			ActionType:    "TASK_STATE_CHANGE",
+			ActionType:    actionType,
 			PreviousTotal: previousTotal,
 			NewTotal:      summary.TotalTasks,
 			CreatedAt:     time.Now(),
@@ -49,17 +49,6 @@ func (r *SummaryRepository) UpdateWithAudit(userID string, tenantID uint64, chan
 
 		return tx.Create(&audit).Error
 	})
-}
-
-func (r *SummaryRepository) UpsertSummary(summary entities.UserTaskSummary) error {
-	return r.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "user_id"}, {Name: "tenant_id"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{
-
-			"total_tasks": gorm.Expr("user_task_summaries.total_tasks + 1"),
-			"updated_at":  summary.UpdatedAt,
-		}),
-	}).Create(&summary).Error
 }
 
 func (r *SummaryRepository) GetSummary(userID string, tenantID uint64) (*entities.UserTaskSummary, error) {

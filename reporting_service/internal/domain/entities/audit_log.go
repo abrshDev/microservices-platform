@@ -15,3 +15,8 @@ type AuditLog struct {
 	NewTotal      int       `gorm:"column:new_total" json:"new_total"`
 	CreatedAt     time.Time `json:"created_at"`
 }
+
+const (
+	ActionTaskCreated = "TASK_CREATED"
+	ActionTaskDeleted = "TASK_DELETED"
+)
