@@ -11,7 +11,7 @@ import (
 )
 
 type TaskEvent struct {
-	ID        string    `json:"id"`
+	ID        string    `json:"task_id"`
 	UserID    string    `json:"user_id"`
 	TenantID  uint64    `json:"tenant_id"`
 	Action    string    `json:"action"`
@@ -25,13 +25,13 @@ type UserEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
+func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
 		GroupID:  groupID,
-		MinBytes: 10e3, // 10KB
-		MaxBytes: 10e6, // 10MB
+		MinBytes: 10e3,
+		MaxBytes: 10e6,
 	})
 
 	defer reader.Close()
@@ -51,6 +51,17 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 			continue
 		}
 
+		// IDEMPOTENCY CHECK
+		isNew, err := repo.InsertIfNotExist(ctx, event.ID)
+		if err != nil {
+			log.Printf("failed to check idempotency: %v", err)
+			continue
+		}
+		if !isNew {
+			log.Printf("duplicate event detected, skipping: %s", event.ID)
+			continue // Skip this message, keep consumer running
+		}
+
 		change := 0
 		if event.Action == "TASK_CREATED" {
 			change = 1
@@ -59,7 +70,6 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 		}
 
 		if change != 0 {
-
 			err := repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
 			if err != nil {
 				log.Printf("Failed to process audit update: %v", err)
@@ -67,10 +77,14 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 			}
 		}
 
+		// Mark as completed AFTER successful processing
+		repo.UpdateStatus(ctx, event.ID, "COMPLETED")
+
 		log.Printf("Processed %s for User %s", event.Action, event.UserID)
 	}
 }
-func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
+
+func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   topic,
@@ -92,13 +106,21 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 			log.Printf("Error unmarshaling user event: %v", err)
 			continue
 		}
-
-		// Use the audit method with 0 change to initialize the user safely
+		isNew, err := repo.InsertIfNotExist(ctx, event.UserID)
+		if err != nil {
+			log.Printf("failed to check idempotency: %v", err)
+			continue
+		}
+		if !isNew {
+			log.Printf("duplicate event detected, skipping: %s", event.UserID)
+			continue
+		}
 		err = repo.UpdateWithAudit(event.UserID, event.TenantID, 0, "USER_REGISTERED")
 		if err != nil {
 			log.Printf("Error initializing user summary with audit: %v", err)
 			continue
 		}
+		repo.UpdateStatus(ctx, event.UserID, "COMPLETED")
 		log.Printf("Reporting Service: Created initial record for User %s", event.UserID)
 	}
 }
