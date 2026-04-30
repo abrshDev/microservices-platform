@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"time"
 
 	"github.com/abrshDev/reporting-service/internal/domain/entities"
@@ -59,4 +60,23 @@ func (r *SummaryRepository) GetSummary(userID string, tenantID uint64) (*entitie
 		return nil, err
 	}
 	return &summary, nil
+}
+
+func (r *SummaryRepository) InsertIfNotExist(ctx context.Context, eventID string) (bool, error) {
+	result := r.db.WithContext(ctx).Exec(
+		"INSERT INTO processed_events (event_id, status) VALUES (?, ?) ON CONFLICT (event_id) DO NOTHING",
+		eventID, "PENDING",
+	)
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
+func (r *SummaryRepository) UpdateStatus(ctx context.Context, eventID string, status string) error {
+	return r.db.WithContext(ctx).Exec(
+		"UPDATE processed_events SET status = ? WHERE event_id = ?",
+		status, eventID,
+	).Error
 }
