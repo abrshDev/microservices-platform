@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/abrshDev/task-service/internal/app/task/commands"
 	"github.com/abrshDev/task-service/internal/app/task/queries"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type TaskHandler struct {
@@ -14,7 +16,6 @@ type TaskHandler struct {
 	logger            *slog.Logger
 }
 
-// Update the constructor to accept the logger
 func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, getTaskHandler *queries.GetTaskHandler, logger *slog.Logger) *TaskHandler {
 	return &TaskHandler{
 		createTaskHandler: createTaskHandler,
@@ -24,16 +25,30 @@ func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, getTaskHandle
 }
 
 func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
+	// Extract correlation ID from request header, or generate a new one
+	correlationID := c.Get("X-Correlation-ID")
+	if correlationID == "" {
+		correlationID = uuid.New().String()
+	}
+
+	// Send correlation ID back to client so they can report it with bugs
+	c.Set("X-Correlation-ID", correlationID)
+
+	// Attach correlation ID to context so downstream services can use it
+	ctx := context.WithValue(c.Context(), "correlation_id", correlationID)
+
+	// Create a logger that includes the correlation ID in every log line
+	logger := h.logger.With(slog.String("correlation_id", correlationID))
+
 	var cmd commands.CreateTaskCommand
 	if err := c.BodyParser(&cmd); err != nil {
-		h.logger.Warn("failed to parse request body", slog.String("error", err.Error()))
+		logger.Warn("failed to parse request body", slog.String("error", err.Error()))
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
 
-	userData, err := h.createTaskHandler.Execute(c.Context(), cmd)
+	userData, err := h.createTaskHandler.Execute(ctx, cmd)
 	if err != nil {
-
-		h.logger.Error("task creation failed",
+		logger.Error("task creation failed",
 			slog.String("user_id", cmd.UserID),
 			slog.String("error", err.Error()),
 		)
@@ -47,21 +62,30 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 		},
 	})
 }
+
 func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
+	// Extract or generate correlation ID
+	correlationID := c.Get("X-Correlation-ID")
+	if correlationID == "" {
+		correlationID = uuid.New().String()
+	}
+
+	c.Set("X-Correlation-ID", correlationID)
+	ctx := context.WithValue(c.Context(), "correlation_id", correlationID)
+	logger := h.logger.With(slog.String("correlation_id", correlationID))
 
 	id := c.Params("id")
 
-	task, err := h.GetTaskHandler.Execute(c.Context(), queries.GetTaskQuery{
+	task, err := h.GetTaskHandler.Execute(ctx, queries.GetTaskQuery{
 		ID: id,
 	})
 
 	if err != nil {
-		h.logger.Error("failed to execute get task query",
+		logger.Error("failed to execute get task query",
 			slog.String("task_id", id),
 			slog.String("error", err.Error()),
 		)
 
-		// If the error is specifically about UUID format, return 400
 		if err.Error() == "invalid task uuid format" {
 			return c.Status(400).JSON(fiber.Map{
 				"error": "Invalid ID format",
@@ -73,14 +97,12 @@ func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
 		})
 	}
 
-	// . Handle the "Not Found" case
 	if task == nil {
-		h.logger.Warn("task lookup returned no results", slog.String("task_id", id))
+		logger.Warn("task lookup returned no results", slog.String("task_id", id))
 		return c.Status(404).JSON(fiber.Map{
 			"error": "Task not found",
 		})
 	}
 
-	// Return the merged Task + User data
 	return c.Status(200).JSON(task)
 }

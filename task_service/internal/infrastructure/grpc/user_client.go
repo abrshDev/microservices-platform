@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -47,7 +48,11 @@ func NewUserClient(address string) (*UserClient, error) {
 }
 
 func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
-
+	// Extract correlation ID from context and attach to gRPC metadata
+	if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+		md := metadata.Pairs("x-correlation-id", correlationID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		var lastErr error
 		maxRetries := 3
@@ -93,7 +98,14 @@ func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResp
 }
 
 func (c *UserClient) CheckUserStatus(ctx context.Context, userID string) (*user.CheckUserStatusResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+
+	// Extract correlation ID from context and attach to gRPC metadata
+	if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+		md := metadata.Pairs("x-correlation-id", correlationID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	resp, err := c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
 	if err != nil {
