@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -32,12 +33,11 @@ func main() {
 	// Kafka Consumer
 	go func() {
 
-		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo)
+		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo, context.Background())
 	}()
+
 	go func() {
-		go func() {
-			kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo)
-		}()
+		kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo, context.Background())
 	}()
 
 	app := fiber.New()
