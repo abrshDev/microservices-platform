@@ -3,7 +3,7 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
@@ -11,12 +11,14 @@ import (
 )
 
 type TaskEvent struct {
-	ID        string    `json:"task_id"`
-	UserID    string    `json:"user_id"`
-	TenantID  uint64    `json:"tenant_id"`
-	Action    string    `json:"action"`
-	Timestamp time.Time `json:"timestamp"`
+	CorrelationID string    `json:"correlation_id"`
+	ID            string    `json:"task_id"`
+	UserID        string    `json:"user_id"`
+	TenantID      uint64    `json:"tenant_id"`
+	Action        string    `json:"action"`
+	Timestamp     time.Time `json:"timestamp"`
 }
+
 type UserEvent struct {
 	UserID    string    `json:"user_id"`
 	TenantID  uint64    `json:"tenant_id"`
@@ -25,7 +27,7 @@ type UserEvent struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context) {
+func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context, logger *slog.Logger) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
@@ -36,30 +38,38 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 
 	defer reader.Close()
 
-	log.Printf("Kafka Consumer started: Topic=%s, Group=%s", topic, groupID)
+	logger.Info("Kafka Task Consumer started",
+		slog.String("topic", topic),
+		slog.String("group", groupID),
+	)
 
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
-			log.Printf("Error reading message: %v", err)
+			logger.Error("failed to read message", slog.String("error", err.Error()))
 			continue
 		}
 
 		var event TaskEvent
 		if err := json.Unmarshal(m.Value, &event); err != nil {
-			log.Printf("Error unmarshaling event: %v", err)
+			logger.Error("failed to unmarshal event", slog.String("error", err.Error()))
 			continue
 		}
 
-		// IDEMPOTENCY CHECK
 		isNew, err := repo.InsertIfNotExist(ctx, event.ID)
 		if err != nil {
-			log.Printf("failed to check idempotency: %v", err)
+			logger.Error("failed to check idempotency",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 		if !isNew {
-			log.Printf("duplicate event detected, skipping: %s", event.ID)
-			continue // Skip this message, keep consumer running
+			logger.Info("duplicate event detected, skipping",
+				slog.String("event_id", event.ID),
+				slog.String("correlation_id", event.CorrelationID),
+			)
+			continue
 		}
 
 		change := 0
@@ -72,19 +82,27 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 		if change != 0 {
 			err := repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
 			if err != nil {
-				log.Printf("Failed to process audit update: %v", err)
+				logger.Error("failed to process audit update",
+					slog.String("user_id", event.UserID),
+					slog.String("action", event.Action),
+					slog.String("error", err.Error()),
+				)
 				continue
 			}
 		}
 
-		// Mark as completed AFTER successful processing
 		repo.UpdateStatus(ctx, event.ID, "COMPLETED")
 
-		log.Printf("Processed %s for User %s", event.Action, event.UserID)
+		logger.Info("event processed",
+			slog.String("action", event.Action),
+			slog.String("correlation_id", event.CorrelationID),
+			slog.String("task_id", event.ID),
+			slog.String("user_id", event.UserID),
+		)
 	}
 }
 
-func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context) {
+func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context, logger *slog.Logger) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   topic,
@@ -92,35 +110,53 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 	})
 	defer reader.Close()
 
-	log.Printf("Kafka User Consumer started: Topic=%s", topic)
+	logger.Info("Kafka User Consumer started",
+		slog.String("topic", topic),
+		slog.String("group", groupID),
+	)
 
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
-			log.Printf("Error reading user message: %v", err)
+			logger.Error("failed to read user message", slog.String("error", err.Error()))
 			continue
 		}
 
 		var event UserEvent
 		if err := json.Unmarshal(m.Value, &event); err != nil {
-			log.Printf("Error unmarshaling user event: %v", err)
+			logger.Error("failed to unmarshal user event", slog.String("error", err.Error()))
 			continue
 		}
+
 		isNew, err := repo.InsertIfNotExist(ctx, event.UserID)
 		if err != nil {
-			log.Printf("failed to check idempotency: %v", err)
+			logger.Error("failed to check idempotency",
+				slog.String("user_id", event.UserID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 		if !isNew {
-			log.Printf("duplicate event detected, skipping: %s", event.UserID)
+			logger.Info("duplicate user event detected, skipping",
+				slog.String("user_id", event.UserID),
+			)
 			continue
 		}
+
 		err = repo.UpdateWithAudit(event.UserID, event.TenantID, 0, "USER_REGISTERED")
 		if err != nil {
-			log.Printf("Error initializing user summary with audit: %v", err)
+			logger.Error("failed to initialize user summary",
+				slog.String("user_id", event.UserID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
+
 		repo.UpdateStatus(ctx, event.UserID, "COMPLETED")
-		log.Printf("Reporting Service: Created initial record for User %s", event.UserID)
+
+		logger.Info("user record initialized",
+			slog.String("user_id", event.UserID),
+			slog.Int("tenant_id", int(event.TenantID)),
+		)
 	}
 }
