@@ -105,14 +105,15 @@ func (c *UserClient) CheckUserStatus(ctx context.Context, userID string) (*user.
 		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	resp, err := c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
+	result, err := c.breaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		return c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
+	})
 	if err != nil {
-		return nil, fmt.Errorf("gRPC call failed: %w", err)
+		return nil, err
 	}
-
-	return resp, nil
+	return result.(*user.CheckUserStatusResponse), nil
 }
 func (c *UserClient) Close() error {
 	return c.conn.Close()
