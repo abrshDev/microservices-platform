@@ -2,9 +2,7 @@ package commands
 
 import (
 	"context"
-	"time"
 
-	"github.com/abrshDev/reporting-service/internal/domain/entities"
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
 )
 
@@ -16,12 +14,17 @@ func NewSyncTaskHandler(repo repositories.SummaryRepo) *SyncTaskHandler {
 	return &SyncTaskHandler{repo: repo}
 }
 
-func (h *SyncTaskHandler) Execute(ctx context.Context, userID string, tenantID uint64) error {
-	summary := entities.UserTaskSummary{
-		UserID:     userID,
-		TenantID:   tenantID,
-		TotalTasks: 1, // Set to 1 for the initial atomic increment
-		UpdatedAt:  time.Now(),
+func (h *SyncTaskHandler) Execute(ctx context.Context, userID string, tenantID uint64, action string) error {
+	change := 0
+	if action == "TASK_CREATED" {
+		change = 1
+	} else if action == "TASK_DELETED" {
+		change = -1
 	}
-	return h.repo.UpsertSummary(summary)
+
+	if change == 0 {
+		return nil
+	}
+
+	return h.repo.UpdateWithAudit(userID, tenantID, change, action)
 }

@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -28,14 +29,13 @@ func NewUserClient(address string) (*UserClient, error) {
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
-	// 3. Initialize the Circuit Breaker settings
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "user-service-breaker",
 		MaxRequests: 3,                // Max requests allowed when "half-open"
 		Interval:    5 * time.Second,  // Reset interval
 		Timeout:     10 * time.Second, // How long to stay "Open" before trying again
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			// Trip if we fail 5 times in a row
+
 			return counts.ConsecutiveFailures > 5
 		},
 	})
@@ -43,12 +43,16 @@ func NewUserClient(address string) (*UserClient, error) {
 	return &UserClient{
 		client:  user.NewUserServiceClient(conn),
 		conn:    conn,
-		breaker: cb, // 4. Assign it
+		breaker: cb,
 	}, nil
 }
 
 func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResponse, error) {
-	// 5. Wrap your logic inside the breaker's Execute function
+	// Extract correlation ID from context and attach to gRPC metadata
+	if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+		md := metadata.Pairs("x-correlation-id", correlationID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		var lastErr error
 		maxRetries := 3
@@ -94,14 +98,22 @@ func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResp
 }
 
 func (c *UserClient) CheckUserStatus(ctx context.Context, userID string) (*user.CheckUserStatusResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	resp, err := c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
-	if err != nil {
-		return nil, fmt.Errorf("gRPC call failed: %w", err)
+
+	// Extract correlation ID from context and attach to gRPC metadata
+	if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+		md := metadata.Pairs("x-correlation-id", correlationID)
+		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
-	return resp, nil
+	result, err := c.breaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		return c.client.CheckUserStatus(ctx, &user.CheckUserStatusRequest{Id: userID})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.(*user.CheckUserStatusResponse), nil
 }
 func (c *UserClient) Close() error {
 	return c.conn.Close()

@@ -21,12 +21,21 @@ func NewUserProducer(brokers []string) *UserProducer {
 	}
 }
 
+/*
+	msg := map[string]interface{}{
+			"event_type": "UserCreated",
+			"user_id":    userID,
+			"email":      email,
+			"tenant_id":  tenantID,
+		}
+*/
 func (p *UserProducer) PublishUserCreated(ctx context.Context, userID string, email string, tenantID uint) error {
 	msg := map[string]interface{}{
-		"event_type": "UserCreated",
-		"user_id":    userID,
-		"email":      email,
-		"tenant_id":  tenantID,
+
+		"user_id":   userID,
+		"tenant_id": tenantID,
+		"email":     email,
+		"action":    "UserCreated",
 	}
 
 	payload, err := json.Marshal(msg)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -10,10 +11,12 @@ import (
 	"github.com/abrshDev/reporting-service/internal/infrastructure/config"
 	"github.com/abrshDev/reporting-service/internal/infrastructure/database/postgres"
 	"github.com/abrshDev/reporting-service/internal/infrastructure/kafka"
+	"github.com/abrshDev/reporting-service/internal/infrastructure/logger"
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
+	appLogger := logger.NewLogger("reporting_service")
 	config.LoadEnv()
 
 	db, err := postgres.NewConnection()
@@ -32,12 +35,11 @@ func main() {
 	// Kafka Consumer
 	go func() {
 
-		kafka.StartConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo)
+		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo, context.Background(), appLogger)
 	}()
+
 	go func() {
-		go func() {
-			kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo)
-		}()
+		kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo, context.Background(), appLogger)
 	}()
 
 	app := fiber.New()

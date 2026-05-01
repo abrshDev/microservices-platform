@@ -3,80 +3,106 @@ package kafka
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
-	"github.com/abrshDev/reporting-service/internal/domain/entities"
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
 	"github.com/segmentio/kafka-go"
 )
 
 type TaskEvent struct {
-	UserID    string    `json:"user_id"`
-	TenantID  uint64    `json:"tenant_id"`
-	Action    string    `json:"action"`
-	Timestamp time.Time `json:"timestamp"`
+	CorrelationID string    `json:"correlation_id"`
+	ID            string    `json:"task_id"`
+	UserID        string    `json:"user_id"`
+	TenantID      uint64    `json:"tenant_id"`
+	Action        string    `json:"action"`
+	Timestamp     time.Time `json:"timestamp"`
 }
+
 type UserEvent struct {
-	ID        string    `json:"user_id"`
+	UserID    string    `json:"user_id"`
 	TenantID  uint64    `json:"tenant_id"`
 	Email     string    `json:"email"`
 	Action    string    `json:"action"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-func (e *TaskEvent) MapToEntity() entities.UserTaskSummary {
-	return entities.UserTaskSummary{
-		UserID:     e.UserID,
-		TenantID:   e.TenantID,
-		TotalTasks: 1,
-		UpdatedAt:  e.Timestamp,
-	}
-}
-func (e *UserEvent) MapToEntity() entities.UserTaskSummary {
-	return entities.UserTaskSummary{
-		UserID:     e.ID,
-		TenantID:   e.TenantID,
-		TotalTasks: 0,
-		UpdatedAt:  e.Timestamp,
-	}
-}
-func StartConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
+func StartTaskConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context, logger *slog.Logger) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		Topic:    topic,
 		GroupID:  groupID,
-		MinBytes: 10e3, // 10KB
-		MaxBytes: 10e6, // 10MB
+		MinBytes: 10e3,
+		MaxBytes: 10e6,
 	})
 
 	defer reader.Close()
 
-	log.Printf("Kafka Consumer started: Topic=%s, Group=%s", topic, groupID)
+	logger.Info("Kafka Task Consumer started",
+		slog.String("topic", topic),
+		slog.String("group", groupID),
+	)
 
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
-			log.Printf("Error reading message: %v", err)
+			logger.Error("failed to read message", slog.String("error", err.Error()))
 			continue
 		}
 
 		var event TaskEvent
 		if err := json.Unmarshal(m.Value, &event); err != nil {
-			log.Printf("Error unmarshaling event: %v", err)
+			logger.Error("failed to unmarshal event", slog.String("error", err.Error()))
 			continue
 		}
 
-		summary := event.MapToEntity()
-		if err := repo.UpsertSummary(summary); err != nil {
-			log.Printf("Error updating summary in DB: %v", err)
+		isNew, err := repo.InsertIfNotExist(ctx, event.ID)
+		if err != nil {
+			logger.Error("failed to check idempotency",
+				slog.String("event_id", event.ID),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		if !isNew {
+			logger.Info("duplicate event detected, skipping",
+				slog.String("event_id", event.ID),
+				slog.String("correlation_id", event.CorrelationID),
+			)
 			continue
 		}
 
-		log.Printf("Successfully processed event for User %s (Tenant %d)", event.UserID, event.TenantID)
+		change := 0
+		if event.Action == "TASK_CREATED" {
+			change = 1
+		} else if event.Action == "TASK_DELETED" {
+			change = -1
+		}
+
+		if change != 0 {
+			err := repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
+			if err != nil {
+				logger.Error("failed to process audit update",
+					slog.String("user_id", event.UserID),
+					slog.String("action", event.Action),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+		}
+
+		repo.UpdateStatus(ctx, event.ID, "COMPLETED")
+
+		logger.Info("event processed",
+			slog.String("action", event.Action),
+			slog.String("correlation_id", event.CorrelationID),
+			slog.String("task_id", event.ID),
+			slog.String("user_id", event.UserID),
+		)
 	}
 }
-func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo) {
+
+func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context, logger *slog.Logger) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
 		Topic:   topic,
@@ -84,26 +110,53 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 	})
 	defer reader.Close()
 
-	log.Printf("Kafka User Consumer started: Topic=%s", topic)
+	logger.Info("Kafka User Consumer started",
+		slog.String("topic", topic),
+		slog.String("group", groupID),
+	)
 
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
-			log.Printf("Error reading user message: %v", err)
+			logger.Error("failed to read user message", slog.String("error", err.Error()))
 			continue
 		}
 
 		var event UserEvent
 		if err := json.Unmarshal(m.Value, &event); err != nil {
-			log.Printf("Error unmarshaling user event: %v", err)
+			logger.Error("failed to unmarshal user event", slog.String("error", err.Error()))
 			continue
 		}
 
-		summary := event.MapToEntity()
-		if err := repo.UpsertSummary(summary); err != nil {
-			log.Printf("Error initializing user summary: %v", err)
+		isNew, err := repo.InsertIfNotExist(ctx, event.UserID)
+		if err != nil {
+			logger.Error("failed to check idempotency",
+				slog.String("user_id", event.UserID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
-		log.Printf("Reporting Service: Created initial record for User %s", event.ID)
+		if !isNew {
+			logger.Info("duplicate user event detected, skipping",
+				slog.String("user_id", event.UserID),
+			)
+			continue
+		}
+
+		err = repo.UpdateWithAudit(event.UserID, event.TenantID, 0, "USER_REGISTERED")
+		if err != nil {
+			logger.Error("failed to initialize user summary",
+				slog.String("user_id", event.UserID),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+
+		repo.UpdateStatus(ctx, event.UserID, "COMPLETED")
+
+		logger.Info("user record initialized",
+			slog.String("user_id", event.UserID),
+			slog.Int("tenant_id", int(event.TenantID)),
+		)
 	}
 }

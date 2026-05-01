@@ -2,9 +2,7 @@ package commands
 
 import (
 	"context"
-	"time"
 
-	"github.com/abrshDev/reporting-service/internal/domain/entities"
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
 )
 
@@ -17,10 +15,5 @@ func NewSyncUserHandler(repo repositories.SummaryRepo) *SyncUserHandler {
 }
 
 func (h *SyncUserHandler) Execute(ctx context.Context, userID string, tenantID uint64) error {
-	summary := entities.UserTaskSummary{
-		UserID:    userID,
-		TenantID:  tenantID,
-		UpdatedAt: time.Now(),
-	}
-	return h.repo.UpsertSummary(summary)
+	return h.repo.UpdateWithAudit(userID, tenantID, 0, "USER_REGISTERED")
 }
