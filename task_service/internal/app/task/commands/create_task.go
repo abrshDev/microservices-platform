@@ -92,13 +92,15 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		)
 		return nil, err
 	}
+	correlation_id, _ := ctx.Value("correlation_id").(string)
 
 	event := events.TaskCreatedEvent{
-		TaskID:      task.ID,
-		UserID:      task.UserID,
-		TenantID:    task.TenantID,
-		Title:       task.Title,
-		Description: task.Description,
+		CorrelationID: correlation_id,
+		TaskID:        task.ID,
+		UserID:        task.UserID,
+		TenantID:      task.TenantID,
+		Title:         task.Title,
+		Description:   task.Description,
 	}
 
 	if err := h.producer.PublishTaskCreated(ctx, parsedUserID.String(), event); err != nil {
