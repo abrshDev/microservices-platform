@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/abrshDev/task-service/internal/transport/grpc/proto/user"
@@ -37,6 +38,9 @@ func NewUserClient(address string) (*UserClient, error) {
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 
 			return counts.ConsecutiveFailures > 5
+		},
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			log.Printf("Circuit Breaker '%s' changed from %s to %s", name, from, to)
 		},
 	})
 
