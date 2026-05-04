@@ -69,54 +69,81 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 		go func(workerID int) {
 			defer wg.Done()
 			for envelope := range messages {
-				var event TaskEvent
-				if err := json.Unmarshal(envelope.msg.Value, &event); err != nil {
-					logger.Error("failed to unmarshal event", slog.String("error", err.Error()))
-					continue
-				}
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							logger.Error("worker panicked",
+								slog.Any("panic", r),
+								slog.Int("worker", workerID),
+							)
+						}
+					}()
 
-				isNew, err := repo.InsertIfNotExist(ctx, event.ID)
-				if err != nil {
-					logger.Error("failed to check idempotency",
-						slog.String("event_id", event.ID),
-						slog.String("error", err.Error()),
-					)
-					continue
-				}
-				if !isNew {
-					logger.Info("duplicate event detected, skipping",
-						slog.String("event_id", event.ID),
-					)
-					continue
-				}
+					var event TaskEvent
+					if err := json.Unmarshal(envelope.msg.Value, &event); err != nil {
+						logger.Error("failed to unmarshal event", slog.String("error", err.Error()))
+						return
+					}
 
-				change := 0
-				if event.Action == "TASK_CREATED" {
-					change = 1
-				} else if event.Action == "TASK_DELETED" {
-					change = -1
-				}
-
-				if change != 0 {
-					err := repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
+					var isNew bool
+					err := retryWithBackoff(logger, "InsertIfNotExist", 3, func() error {
+						var err error
+						isNew, err = repo.InsertIfNotExist(ctx, event.ID)
+						return err
+					})
 					if err != nil {
-						logger.Error("failed to process audit update",
-							slog.String("user_id", event.UserID),
+						logger.Error("idempotency check failed after retries",
+							slog.String("event_id", event.ID),
 							slog.String("error", err.Error()),
 						)
-						continue
+						return
 					}
-				}
+					if !isNew {
+						logger.Info("duplicate event detected, skipping",
+							slog.String("event_id", event.ID),
+						)
+						return
+					}
 
-				repo.UpdateStatus(ctx, event.ID, "COMPLETED")
+					change := 0
+					if event.Action == "TASK_CREATED" {
+						change = 1
+					} else if event.Action == "TASK_DELETED" {
+						change = -1
+					}
 
-				logger.Info("event processed",
-					slog.String("action", event.Action),
-					slog.String("correlation_id", event.CorrelationID),
-					slog.String("task_id", event.ID),
-					slog.String("user_id", event.UserID),
-					slog.Int("worker", workerID),
-				)
+					if change != 0 {
+						err = retryWithBackoff(logger, "UpdateWithAudit", 3, func() error {
+							return repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
+						})
+						if err != nil {
+							logger.Error("audit update failed after retries",
+								slog.String("user_id", event.UserID),
+								slog.String("error", err.Error()),
+							)
+							return
+						}
+					}
+
+					err = retryWithBackoff(logger, "UpdateStatus", 3, func() error {
+						return repo.UpdateStatus(ctx, event.ID, "COMPLETED")
+					})
+					if err != nil {
+						logger.Error("status update failed after retries",
+							slog.String("event_id", event.ID),
+							slog.String("error", err.Error()),
+						)
+						return
+					}
+
+					logger.Info("event processed",
+						slog.String("action", event.Action),
+						slog.String("correlation_id", event.CorrelationID),
+						slog.String("task_id", event.ID),
+						slog.String("user_id", event.UserID),
+						slog.Int("worker", workerID),
+					)
+				}()
 			}
 		}(w)
 	}
