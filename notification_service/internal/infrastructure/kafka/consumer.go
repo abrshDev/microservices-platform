@@ -3,14 +3,15 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/abrshDev/notification_service/internal/app/notification/commands"
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 )
 
-// We define the struct here so we don't need to import from task-service
 type TaskCreatedEvent struct {
 	TaskID      uuid.UUID `json:"task_id"`
 	UserID      uuid.UUID `json:"user_id"`
@@ -48,10 +49,14 @@ func (c *NotificationConsumer) Start(ctx context.Context) {
 
 		var event TaskCreatedEvent
 		if err := json.Unmarshal(msg.Value, &event); err != nil {
+
+			c.logger.Error("failed to unmarshal message",
+				slog.String("raw", string(msg.Value)),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
-		// Logic Change: Use the Command Handler instead of fmt.Printf
 		cmd := commands.SendNotificationCommand{
 			TaskID:  event.TaskID.String(),
 			UserID:  event.UserID.String(),
@@ -59,10 +64,44 @@ func (c *NotificationConsumer) Start(ctx context.Context) {
 			Type:    "TASK_ALERT",
 		}
 
-		if err := c.sendHandler.Execute(ctx, cmd); err != nil {
-			c.logger.Error("handler failed", slog.String("error", err.Error()))
+		maxRetries := 3
+		var lastErr error
+		success := false
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			lastErr = c.tryExecute(ctx, cmd)
+			if lastErr == nil {
+				success = true
+				break
+			}
+			c.logger.Warn("handler attempt failed",
+				slog.Int("attempt", attempt),
+				slog.Int("max_retries", maxRetries),
+				slog.String("error", lastErr.Error()),
+			)
+			time.Sleep(time.Duration(attempt*100) * time.Millisecond)
+		}
+
+		if !success {
+			c.logger.Error("message exhausted all retries - DEAD LETTER",
+				slog.String("payload", string(msg.Value)),
+				slog.String("final_error", lastErr.Error()),
+			)
 		}
 	}
+}
+
+func (c *NotificationConsumer) tryExecute(ctx context.Context, cmd commands.SendNotificationCommand) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic recovered: %v", r)
+			c.logger.Error("handler panicked",
+				slog.Any("panic", r),
+				slog.String("task_id", cmd.TaskID),
+			)
+		}
+	}()
+	return c.sendHandler.Execute(ctx, cmd)
 }
 func (c *NotificationConsumer) Close() error {
 	return c.reader.Close()
