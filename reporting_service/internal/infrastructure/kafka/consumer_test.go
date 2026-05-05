@@ -3,11 +3,13 @@ package kafka
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/abrshDev/reporting-service/internal/domain/entities"
-	_ "github.com/lib/pq"
+	kafkago "github.com/segmentio/kafka-go"
+	"github.com/testcontainers/testcontainers-go/modules/kafka"
 
 	postgreslocal "github.com/abrshDev/reporting-service/internal/infrastructure/database/postgres"
 	_ "github.com/lib/pq"
@@ -20,7 +22,7 @@ func TestTaskConsumer_ProcessesEvent(t *testing.T) {
 	ctx := context.Background()
 
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
+		"postgres:16-alpine",
 		postgres.WithDatabase("reporting_db"),
 		postgres.WithUsername("testuser"),
 		postgres.WithPassword("testpass"),
@@ -45,7 +47,7 @@ func TestTaskConsumer_ProcessesEvent(t *testing.T) {
 				break
 			}
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 	if err != nil {
 		t.Fatalf("postgres not ready: %v", err)
@@ -75,4 +77,38 @@ func TestTaskConsumer_ProcessesEvent(t *testing.T) {
 
 	t.Log("database ready, repo created")
 	_ = repo
+
+	kafkaContainer, err := kafka.Run(ctx,
+		"confluentinc/cp-kafka:7.4.0",
+		kafka.WithClusterID("test-cluster-123"),
+	)
+	brokers, err := kafkaContainer.Brokers(ctx)
+	if err != nil {
+		t.Fatalf("failed to get kafka brokers: %v", err)
+	}
+	t.Logf("kafka brokers: %v", brokers)
+	topic := "taskevents"
+
+	writer := &kafkago.Writer{
+		Addr:  kafkago.TCP(brokers[0]),
+		Topic: topic,
+	}
+	defer writer.Close()
+	testEvent := map[string]interface{}{
+		"task_id":        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		"user_id":        "11111111-2222-3333-4444-555555555555",
+		"tenant_id":      uint64(1),
+		"action":         "TASK_CREATED",
+		"correlation_id": "test-correlation-123",
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}
+
+	eventBytes, _ := json.Marshal(testEvent)
+	err = writer.WriteMessages(ctx, kafkago.Message{
+		Value: eventBytes,
+	})
+	if err != nil {
+		t.Fatalf("failed to write test event: %v", err)
+	}
+	t.Log("test event sent to kafka")
 }
