@@ -18,8 +18,8 @@ type SummaryRepository struct {
 func NewSummaryRepository(db *gorm.DB) repositories.SummaryRepo {
 	return &SummaryRepository{db: db}
 }
-func (r *SummaryRepository) UpdateWithAudit(userID string, tenantID uint64, change int, actionType string) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
+func (r *SummaryRepository) UpdateWithAudit(ctx context.Context, userID string, tenantID uint64, change int, actionType string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var summary entities.UserTaskSummary
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("user_id = ? AND tenant_id = ?", userID, tenantID).
