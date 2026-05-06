@@ -55,12 +55,28 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 	go func() {
 		defer close(messages)
 		for {
-			m, err := reader.ReadMessage(context.Background())
+			m, err := reader.ReadMessage(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					logger.Info("Kafka Task Consumer stopped",
+						slog.String("topic", topic),
+						slog.String("group", groupID),
+					)
+					return
+				}
 				logger.Error("failed to read message", slog.String("error", err.Error()))
 				continue
 			}
-			messages <- messageEnvelope{msg: m, err: err}
+
+			select {
+			case messages <- messageEnvelope{msg: m, err: err}:
+			case <-ctx.Done():
+				logger.Info("Kafka Task Consumer stopped",
+					slog.String("topic", topic),
+					slog.String("group", groupID),
+				)
+				return
+			}
 		}
 	}()
 
@@ -186,12 +202,28 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 	go func() {
 		defer close(messages)
 		for {
-			m, err := reader.ReadMessage(context.Background())
+			m, err := reader.ReadMessage(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					logger.Info("Kafka User Consumer stopped",
+						slog.String("topic", topic),
+						slog.String("group", groupID),
+					)
+					return
+				}
 				logger.Error("failed to read user message", slog.String("error", err.Error()))
 				continue
 			}
-			messages <- messageEnvelope{msg: m, err: err}
+
+			select {
+			case messages <- messageEnvelope{msg: m, err: err}:
+			case <-ctx.Done():
+				logger.Info("Kafka User Consumer stopped",
+					slog.String("topic", topic),
+					slog.String("group", groupID),
+				)
+				return
+			}
 		}
 	}()
 
