@@ -32,14 +32,16 @@ func main() {
 	if brokers == "" {
 		brokers = "kafka:29092"
 	}
+	consumerCtx, cancelConsumers := context.WithCancel(context.Background())
+	defer cancelConsumers()
 	// Kafka Consumer
 	go func() {
 
-		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo, context.Background(), appLogger)
+		kafka.StartTaskConsumer([]string{brokers}, "task-events", "reporting-group", summaryRepo, consumerCtx, appLogger)
 	}()
 
 	go func() {
-		kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo, context.Background(), appLogger)
+		kafka.StartUserConsumer([]string{brokers}, "user-events", "reporting-user-group", summaryRepo, consumerCtx, appLogger)
 	}()
 
 	app := fiber.New()

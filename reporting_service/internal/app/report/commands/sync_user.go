@@ -15,5 +15,5 @@ func NewSyncUserHandler(repo repositories.SummaryRepo) *SyncUserHandler {
 }
 
 func (h *SyncUserHandler) Execute(ctx context.Context, userID string, tenantID uint64) error {
-	return h.repo.UpdateWithAudit(userID, tenantID, 0, "USER_REGISTERED")
+	return h.repo.UpdateWithAudit(ctx, userID, tenantID, 0, "USER_REGISTERED")
 }

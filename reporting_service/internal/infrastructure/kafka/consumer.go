@@ -130,7 +130,7 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 
 					if change != 0 {
 						err = retryWithBackoff(logger, "UpdateWithAudit", 3, func() error {
-							return repo.UpdateWithAudit(event.UserID, event.TenantID, change, event.Action)
+							return repo.UpdateWithAudit(ctx, event.UserID, event.TenantID, change, event.Action)
 						})
 						if err != nil {
 							logger.Error("audit update failed after retries",
@@ -271,7 +271,7 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 					}
 
 					err = retryWithBackoff(logger, "UpdateWithAudit", 3, func() error {
-						return repo.UpdateWithAudit(event.UserID, event.TenantID, 0, "USER_REGISTERED")
+						return repo.UpdateWithAudit(ctx, event.UserID, event.TenantID, 0, "USER_REGISTERED")
 					})
 					if err != nil {
 						logger.Error("failed to initialize user summary after retries",

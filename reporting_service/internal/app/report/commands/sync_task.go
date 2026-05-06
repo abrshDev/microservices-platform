@@ -26,5 +26,5 @@ func (h *SyncTaskHandler) Execute(ctx context.Context, userID string, tenantID u
 		return nil
 	}
 
-	return h.repo.UpdateWithAudit(userID, tenantID, change, action)
+	return h.repo.UpdateWithAudit(ctx, userID, tenantID, change, action)
 }
