@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/abrshDev/reporting-service/internal/domain/repositories"
-	"github.com/abrshDev/reporting-service/internal/infrastructure/metrics"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -93,14 +92,12 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 								slog.Any("panic", r),
 								slog.Int("worker", workerID),
 							)
-							metrics.EventsErrors.WithLabelValues("panic").Inc()
 						}
 					}()
 
 					var event TaskEvent
 					if err := json.Unmarshal(envelope.msg.Value, &event); err != nil {
 						logger.Error("failed to unmarshal event", slog.String("error", err.Error()))
-						metrics.EventsErrors.WithLabelValues("unmarshal_failed").Inc()
 						return
 					}
 
@@ -115,14 +112,12 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 							slog.String("event_id", event.ID),
 							slog.String("error", err.Error()),
 						)
-						metrics.EventsErrors.WithLabelValues("idempotency_failed").Inc()
 						return
 					}
 					if !isNew {
 						logger.Info("duplicate event detected, skipping",
 							slog.String("event_id", event.ID),
 						)
-						metrics.EventsDuplicates.Inc()
 						return
 					}
 
@@ -142,7 +137,6 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 								slog.String("user_id", event.UserID),
 								slog.String("error", err.Error()),
 							)
-							metrics.EventsErrors.WithLabelValues("audit_failed").Inc()
 							return
 						}
 					}
@@ -155,11 +149,9 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 							slog.String("event_id", event.ID),
 							slog.String("error", err.Error()),
 						)
-						metrics.EventsErrors.WithLabelValues("status_failed").Inc()
 						return
 					}
 
-					metrics.EventsProcessed.Inc()
 					logger.Info("event processed",
 						slog.String("action", event.Action),
 						slog.String("correlation_id", event.CorrelationID),
@@ -174,7 +166,6 @@ func StartTaskConsumer(brokers []string, topic string, groupID string, repo repo
 
 	wg.Wait()
 }
-
 func retryWithBackoff(logger *slog.Logger, operation string, maxRetries int, fn func() error) error {
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -192,7 +183,6 @@ func retryWithBackoff(logger *slog.Logger, operation string, maxRetries int, fn 
 	}
 	return fmt.Errorf("%s failed after %d retries: %w", operation, maxRetries, lastErr)
 }
-
 func StartUserConsumer(brokers []string, topic string, groupID string, repo repositories.SummaryRepo, ctx context.Context, logger *slog.Logger) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers,
@@ -251,14 +241,12 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 								slog.Any("panic", r),
 								slog.Int("worker", workerID),
 							)
-							metrics.EventsErrors.WithLabelValues("panic").Inc()
 						}
 					}()
 
 					var event UserEvent
 					if err := json.Unmarshal(envelope.msg.Value, &event); err != nil {
 						logger.Error("failed to unmarshal user event", slog.String("error", err.Error()))
-						metrics.EventsErrors.WithLabelValues("unmarshal_failed").Inc()
 						return
 					}
 
@@ -273,14 +261,12 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 							slog.String("user_id", event.UserID),
 							slog.String("error", err.Error()),
 						)
-						metrics.EventsErrors.WithLabelValues("idempotency_failed").Inc()
 						return
 					}
 					if !isNew {
 						logger.Info("duplicate user event detected, skipping",
 							slog.String("user_id", event.UserID),
 						)
-						metrics.EventsDuplicates.Inc()
 						return
 					}
 
@@ -292,7 +278,6 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 							slog.String("user_id", event.UserID),
 							slog.String("error", err.Error()),
 						)
-						metrics.EventsErrors.WithLabelValues("audit_failed").Inc()
 						return
 					}
 
@@ -304,11 +289,9 @@ func StartUserConsumer(brokers []string, topic string, groupID string, repo repo
 							slog.String("user_id", event.UserID),
 							slog.String("error", err.Error()),
 						)
-						metrics.EventsErrors.WithLabelValues("status_failed").Inc()
 						return
 					}
 
-					metrics.EventsProcessed.Inc()
 					logger.Info("user record initialized",
 						slog.String("user_id", event.UserID),
 						slog.Int("tenant_id", int(event.TenantID)),
