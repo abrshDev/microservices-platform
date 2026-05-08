@@ -62,7 +62,7 @@ func (c *UserClient) GetUser(ctx context.Context, userID string) (*user.UserResp
 		maxRetries := 3
 
 		for i := 0; i < maxRetries; i++ {
-			attemptCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			attemptCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			resp, err := c.client.GetUser(attemptCtx, &user.GetUserRequest{Id: userID})
 			cancel()
 
