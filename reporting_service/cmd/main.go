@@ -13,6 +13,8 @@ import (
 	"github.com/abrshDev/reporting-service/internal/infrastructure/kafka"
 	"github.com/abrshDev/reporting-service/internal/infrastructure/logger"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -49,10 +51,7 @@ func main() {
 	// Setup Handlers and Router
 	reportHandler := handlers.NewReportHandler(getSummaryQuery)
 	http.SetupRoutes(app, reportHandler)
-
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.SendString("Reporting Service is Online")
-	})
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 
 	log.Fatal(app.Listen(":8083"))
 }
