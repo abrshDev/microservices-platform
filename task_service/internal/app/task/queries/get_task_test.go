@@ -28,8 +28,11 @@ func (m *MockTaskRepo) GetByID(ctx context.Context, id uuid.UUID) (*entities.Tas
 	return args.Get(0).(*entities.Task), args.Error(1)
 }
 
-// Stub remaining methods to satisfy interface
 func (m *MockTaskRepo) Create(ctx context.Context, t *entities.Task) error { return nil }
+func (m *MockTaskRepo) CreateTaskWithOutbox(ctx context.Context, task *entities.Task, outboxEvent *entities.OutboxEvent) error {
+	args := m.Called(ctx, task, outboxEvent)
+	return args.Error(0)
+}
 func (m *MockTaskRepo) UpdateStatus(ctx context.Context, id uuid.UUID, s entities.TaskStatus) error {
 	return nil
 }
@@ -62,7 +65,6 @@ func TestGetTaskHandler_Execute(t *testing.T) {
 
 		tID, uID := uuid.New(), uuid.New()
 
-		// Setup Expectations
 		repo.On("GetByID", mock.Anything, tID).Return(&entities.Task{ID: tID, UserID: uID, Title: "Test"}, nil)
 		uClient.On("GetUser", mock.Anything, uID.String()).Return(&user.UserResponse{Username: "Abraham"}, nil)
 
@@ -83,7 +85,7 @@ func TestGetTaskHandler_Execute(t *testing.T) {
 
 		res, err := handler.Execute(context.Background(), GetTaskQuery{ID: tID.String()})
 
-		assert.NoError(t, err)                    // Should NOT error
-		assert.Equal(t, "Unknown", res.User.Name) // Should fallback
+		assert.NoError(t, err)
+		assert.Equal(t, "Unknown", res.User.Name)
 	})
 }
