@@ -46,3 +46,14 @@ func (r *taskRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]
 func (r *taskRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Delete(&entities.Task{}, "id = ?", id).Error
 }
+func (r *taskRepository) CreateTaskWithOutbox(ctx context.Context, task *entities.Task, outboxEvent *entities.OutboxEvent) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(task).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(outboxEvent).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
