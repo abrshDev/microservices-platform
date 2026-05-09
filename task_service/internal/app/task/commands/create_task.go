@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -76,6 +77,8 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		return nil, fmt.Errorf("user %s not found", cmd.UserID)
 	}
 
+	correlationID, _ := ctx.Value("correlation_id").(string)
+
 	task := &entities.Task{
 		ID:          uuid.New(),
 		UserID:      parsedUserID,
@@ -85,17 +88,8 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		Status:      "PENDING",
 	}
 
-	if err := h.repo.Create(ctx, task); err != nil {
-		h.logger.Error("failed to save task to database",
-			slog.String("task_id", task.ID.String()),
-			slog.String("error", err.Error()),
-		)
-		return nil, err
-	}
-	correlation_id, _ := ctx.Value("correlation_id").(string)
-
 	event := events.TaskCreatedEvent{
-		CorrelationID: correlation_id,
+		CorrelationID: correlationID,
 		TaskID:        task.ID,
 		UserID:        task.UserID,
 		TenantID:      task.TenantID,
@@ -103,15 +97,30 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		Description:   task.Description,
 	}
 
-	if err := h.producer.PublishTaskCreated(ctx, parsedUserID.String(), event); err != nil {
-		h.logger.Error("failed to publish task created event to kafka",
+	payload, err := json.Marshal(event)
+	if err != nil {
+		h.logger.Error("failed to marshal outbox payload",
+			slog.String("error", err.Error()),
+		)
+		return nil, fmt.Errorf("failed to marshal event: %w", err)
+	}
+
+	outboxEvent := &entities.OutboxEvent{
+		ID:        uuid.New(),
+		EventType: "TASK_CREATED",
+		Payload:   string(payload),
+		Status:    "PENDING",
+	}
+
+	if err := h.repo.CreateTaskWithOutbox(ctx, task, outboxEvent); err != nil {
+		h.logger.Error("failed to save task and outbox event",
 			slog.String("task_id", task.ID.String()),
 			slog.String("error", err.Error()),
 		)
-		return task, fmt.Errorf("task created but failed to publish event: %w", err)
+		return nil, err
 	}
 
-	h.logger.Info("task created successfully and event published",
+	h.logger.Info("task created successfully",
 		slog.String("task_id", task.ID.String()),
 		slog.String("assigned_to", userData.Username),
 	)
