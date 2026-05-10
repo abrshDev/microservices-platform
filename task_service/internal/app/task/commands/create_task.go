@@ -62,7 +62,10 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 		return nil, fmt.Errorf("cannot create task: user %s is inactive", cmd.UserID)
 	}
 	h.logger.Info("user is active")
-
+	if statusResp.Role != "admin" && statusResp.Role != "user" {
+		h.logger.Error("insufficient permissions")
+		return nil, fmt.Errorf("insufficient permissions: %w", err)
+	}
 	userData, err := h.userClient.GetUser(ctx, cmd.UserID)
 	if err != nil {
 		h.logger.Error("failed to verify user via gRPC",
