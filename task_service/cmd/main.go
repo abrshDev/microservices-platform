@@ -52,8 +52,8 @@ func main() {
 
 	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, taskProducer, appLogger)
 	getTaskQuery := queries.NewGetTaskHandler(taskRepo, userClient, appLogger)
-
-	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, appLogger)
+	deleteTaskcmd := commands.NewDeleteTaskHandler(taskRepo, userClient, appLogger)
+	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, deleteTaskcmd, appLogger)
 
 	// Outbox worker
 	outboxWorker := outbox.NewWorker(outboxRepo, taskProducer, appLogger)

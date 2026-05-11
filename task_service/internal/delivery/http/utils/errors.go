@@ -8,7 +8,7 @@ import (
 
 func MapError(c *fiber.Ctx, err error) error {
 	// If it's a validation error (User not found)
-	if errors.Is(err, errors.New("user not found")) { // You'll want to use a custom error type here later
+	if errors.Is(err, errors.New("user not found")) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error":  "User Validation Failed",
 			"detail": "The provided user_id does not exist in our system.",
