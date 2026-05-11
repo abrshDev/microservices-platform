@@ -13,13 +13,15 @@ import (
 type TaskHandler struct {
 	createTaskHandler *commands.CreateTaskHandler
 	GetTaskHandler    *queries.GetTaskHandler
+	DeleteTaskHandler *commands.DeleteTaskHandler
 	logger            *slog.Logger
 }
 
-func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, getTaskHandler *queries.GetTaskHandler, logger *slog.Logger) *TaskHandler {
+func NewTaskHandler(createTaskHandler *commands.CreateTaskHandler, getTaskHandler *queries.GetTaskHandler, deleteTaskHandler *commands.DeleteTaskHandler, logger *slog.Logger) *TaskHandler {
 	return &TaskHandler{
 		createTaskHandler: createTaskHandler,
 		GetTaskHandler:    getTaskHandler,
+		DeleteTaskHandler: deleteTaskHandler,
 		logger:            logger,
 	}
 }
@@ -105,4 +107,28 @@ func (h *TaskHandler) GetTask(c *fiber.Ctx) error {
 	}
 
 	return c.Status(200).JSON(task)
+}
+
+func (h *TaskHandler) Delete(c *fiber.Ctx) error {
+	id := c.Params("id")
+	userID := c.Get("X-User-ID")
+	if userID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "user_id is required"})
+	}
+
+	err := h.DeleteTaskHandler.Execute(c.Context(), commands.DeleteTaskCommand{
+		TaskID: id,
+		UserID: userID,
+	})
+	if err != nil {
+		if err.Error() == "task not found" {
+			return c.Status(404).JSON(fiber.Map{"error": "Task not found"})
+		}
+		if err.Error() == "forbidden: you do not have permission to delete this task" {
+			return c.Status(403).JSON(fiber.Map{"error": "Forbidden"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"message": "Task deleted successfully"})
 }
