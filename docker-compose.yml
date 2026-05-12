@@ -24,9 +24,6 @@ services:
     container_name: user-service-app
     env_file:
       - .env
-    ports:
-      - "8080:8080"
-      - "50051:50051"
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +32,10 @@ services:
     restart: on-failure
     networks:
       - microservice-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.user.rule=PathPrefix(`/api/v1/users`) || PathPrefix(`/api/v1/login`)"
+      - "traefik.http.services.user.loadbalancer.server.port=8080"
 
   task-db:
     image: postgres:15-alpine
@@ -61,8 +62,6 @@ services:
     container_name: task-service-app
     env_file:
       - .env
-    ports:
-      - "8081:8081"
     depends_on:
       task-db:
         condition: service_healthy
@@ -73,6 +72,10 @@ services:
     restart: on-failure
     networks:
       - microservice-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.task.rule=PathPrefix(`/api/v1/tasks`)"
+      - "traefik.http.services.task.loadbalancer.server.port=8081"
 
   notification-db:
     image: postgres:15-alpine
@@ -99,9 +102,6 @@ services:
     container_name: notification-service-app
     env_file:
       - .env
-    ports:
-      - "8082:8082"
-      - "50052:50052"
     depends_on:
       notification-db:
         condition: service_healthy
@@ -136,8 +136,6 @@ services:
     container_name: reporting-service-app
     env_file:
       - .env
-    ports:
-      - "8083:8083"
     depends_on:
       reporting-db:
         condition: service_healthy
@@ -146,6 +144,10 @@ services:
     restart: on-failure
     networks:
       - microservice-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.reporting.rule=PathPrefix(`/api/v1/reports`) || PathPrefix(`/health`) || PathPrefix(`/metrics`)"
+      - "traefik.http.services.reporting.loadbalancer.server.port=8083"
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -179,6 +181,22 @@ services:
       retries: 20
       start_period: 60s
 
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "90:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - microservice-network
+      
 networks:
   microservice-network:
     driver: bridge
