@@ -196,7 +196,16 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - microservice-network
-      
+temporal:
+  image: temporalio/auto-setup:latest
+  container_name: temporal
+  ports:
+    - "7233:7233"
+  environment:
+    - DB=sqlite
+  networks:
+    - microservice-network
+         
 networks:
   microservice-network:
     driver: bridge
