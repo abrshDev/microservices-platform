@@ -196,16 +196,39 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - microservice-network
-temporal:
-  image: temporalio/auto-setup:latest
-  container_name: temporal
-  ports:
-    - "7233:7233"
-  environment:
-    - DB=sqlite
-  networks:
-    - microservice-network
-         
+
+  temporal-db:
+    image: postgres:15-alpine
+    container_name: temporal-db
+    environment:
+      - POSTGRES_USER=temporal
+      - POSTGRES_PASSWORD=temporal
+      - POSTGRES_DB=temporal
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-db
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+    networks:
+      - microservice-network
 networks:
   microservice-network:
     driver: bridge
