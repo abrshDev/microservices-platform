@@ -11,7 +11,9 @@ import (
 	"github.com/abrshDev/task-service/internal/domain/repositories"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc"
 	"github.com/abrshDev/task-service/internal/infrastructure/kafka"
+	"github.com/abrshDev/task-service/internal/infrastructure/temporal"
 	"github.com/google/uuid"
+	"go.temporal.io/sdk/client"
 )
 
 type CreateTaskCommand struct {
@@ -21,18 +23,22 @@ type CreateTaskCommand struct {
 }
 
 type CreateTaskHandler struct {
-	repo       repositories.TaskRepository
-	userClient *grpc.UserClient
-	producer   *kafka.EventProducer
-	logger     *slog.Logger
+	repo           repositories.TaskRepository
+	userClient     *grpc.UserClient
+	producer       *kafka.EventProducer
+	logger         *slog.Logger
+	temporalConfig temporal.Config
+	temporalClient client.Client
 }
 
-func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, producer *kafka.EventProducer, logger *slog.Logger) *CreateTaskHandler {
+func NewCreateTaskHandler(repo repositories.TaskRepository, userClient *grpc.UserClient, producer *kafka.EventProducer, logger *slog.Logger, temporalconfig temporal.Config, temporalclient client.Client) *CreateTaskHandler {
 	return &CreateTaskHandler{
-		repo:       repo,
-		userClient: userClient,
-		producer:   producer,
-		logger:     logger,
+		repo:           repo,
+		userClient:     userClient,
+		producer:       producer,
+		logger:         logger,
+		temporalConfig: temporalconfig,
+		temporalClient: temporalclient,
 	}
 }
 
@@ -129,4 +135,39 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 	)
 
 	return task, nil
+}
+
+func (h *CreateTaskHandler) ExecuteWithTemporal(ctx context.Context, cmd CreateTaskCommand) (*entities.Task, error) {
+	workflowID := "task-" + uuid.New().String()
+
+	workflowInput := temporal.CreateTaskInput{
+		UserID:      cmd.UserID,
+		Title:       cmd.Title,
+		Description: cmd.Description,
+	}
+	workflowOptions := client.StartWorkflowOptions{
+		ID:        workflowID,
+		TaskQueue: h.temporalConfig.TaskQueue,
+	}
+	workflowRun, err := h.temporalClient.ExecuteWorkflow(ctx, workflowOptions, temporal.CreateTaskWorkflow, workflowInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start workflow: %w", err)
+	}
+
+	// Return a task reference immediately - the workflow runs in background
+	task := &entities.Task{
+		ID:          uuid.MustParse(workflowID),
+		UserID:      uuid.MustParse(cmd.UserID),
+		Title:       cmd.Title,
+		Description: cmd.Description,
+		Status:      "PROCESSING",
+	}
+
+	h.logger.Info("task workflow started",
+		"workflow_id", workflowID,
+		"run_id", workflowRun.GetRunID(),
+	)
+
+	return task, nil
+
 }
