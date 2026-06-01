@@ -17,6 +17,7 @@ import (
 	"github.com/abrshDev/task-service/internal/infrastructure/kafka"
 	"github.com/abrshDev/task-service/internal/infrastructure/logger"
 	"github.com/abrshDev/task-service/internal/infrastructure/outbox"
+	"github.com/abrshDev/task-service/internal/infrastructure/temporal"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -46,11 +47,41 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize User gRPC client: %v", err)
 	}
+	temporalhostport := os.Getenv("TEMPORAL_HOST_PORT")
+	if temporalhostport == "" {
+		temporalhostport = "temporal:7233"
 
+	}
 	taskRepo := postgres.NewTaskRepository(db)
 	outboxRepo := postgres.NewOutboxRepository(db)
 
-	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, taskProducer, appLogger)
+	cfgTemporal := temporal.Config{
+		HostPort:  temporalhostport,
+		Namespace: "default",
+		TaskQueue: "task-workflows",
+	}
+	temporalClient, err := temporal.NewClient(cfgTemporal)
+	activities := &temporal.Activities{
+		TaskRepo:   taskRepo,
+		UserClient: userClient,
+		Producer:   taskProducer,
+	}
+
+	temporalWorker := temporal.NewWorker(temporalClient, cfgTemporal.TaskQueue, activities)
+
+	if err != nil {
+		log.Fatalf("Failed to create temporal client: %v", err)
+	}
+	defer temporalClient.Close()
+
+	go func() {
+		appLogger.Info("starting temporal worker", "task_queue", cfgTemporal.TaskQueue)
+		if err := temporalWorker.Run(nil); err != nil {
+			appLogger.Error("temporal worker stopped", "error", err)
+		}
+	}()
+
+	createTaskCmd := commands.NewCreateTaskHandler(taskRepo, userClient, taskProducer, appLogger, cfgTemporal, temporalClient)
 	getTaskQuery := queries.NewGetTaskHandler(taskRepo, userClient, appLogger)
 	deleteTaskcmd := commands.NewDeleteTaskHandler(taskRepo, userClient, appLogger)
 	taskHandler := handlers.NewTaskHandler(createTaskCmd, getTaskQuery, deleteTaskcmd, appLogger)
