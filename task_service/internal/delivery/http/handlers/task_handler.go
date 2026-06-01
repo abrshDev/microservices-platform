@@ -48,7 +48,7 @@ func (h *TaskHandler) CreateTask(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 	}
 
-	userData, err := h.createTaskHandler.Execute(ctx, cmd)
+	userData, err := h.createTaskHandler.ExecuteWithTemporal(ctx, cmd)
 	if err != nil {
 		logger.Error("task creation failed",
 			slog.String("user_id", cmd.UserID),
