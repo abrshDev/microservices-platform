@@ -136,9 +136,9 @@ func (h *CreateTaskHandler) Execute(ctx context.Context, cmd CreateTaskCommand) 
 
 	return task, nil
 }
-
 func (h *CreateTaskHandler) ExecuteWithTemporal(ctx context.Context, cmd CreateTaskCommand) (*entities.Task, error) {
-	workflowID := "task-" + uuid.New().String()
+	taskID := uuid.New()
+	workflowID := "task-" + taskID.String()
 
 	workflowInput := temporal.CreateTaskInput{
 		UserID:      cmd.UserID,
@@ -154,9 +154,8 @@ func (h *CreateTaskHandler) ExecuteWithTemporal(ctx context.Context, cmd CreateT
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
-	// Return a task reference immediately - the workflow runs in background
 	task := &entities.Task{
-		ID:          uuid.MustParse(workflowID),
+		ID:          taskID,
 		UserID:      uuid.MustParse(cmd.UserID),
 		Title:       cmd.Title,
 		Description: cmd.Description,
@@ -169,5 +168,4 @@ func (h *CreateTaskHandler) ExecuteWithTemporal(ctx context.Context, cmd CreateT
 	)
 
 	return task, nil
-
 }
