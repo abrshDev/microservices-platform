@@ -1,6 +1,6 @@
 # Stage 1: Build the binary
 # Match the Go version in your go.mod (1.25)
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
