@@ -14,6 +14,7 @@ import (
 	"github.com/abrshDev/task-service/internal/infrastructure/config"
 	"github.com/abrshDev/task-service/internal/infrastructure/database/postgres"
 	"github.com/abrshDev/task-service/internal/infrastructure/grpc"
+	"github.com/abrshDev/task-service/internal/infrastructure/httpclient"
 	"github.com/abrshDev/task-service/internal/infrastructure/kafka"
 	"github.com/abrshDev/task-service/internal/infrastructure/logger"
 	"github.com/abrshDev/task-service/internal/infrastructure/outbox"
@@ -47,6 +48,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize User gRPC client: %v", err)
 	}
+	userServiceBaseURL := os.Getenv("USER_SERVICE_BASE_URL")
+	if userServiceBaseURL == "" {
+		userServiceBaseURL = "http://user-service:8080"
+	}
+	userServiceAPIKey := os.Getenv("USER_SERVICE_API_KEY")
+
+	userHTTPClient := httpclient.NewUserClient(userServiceBaseURL, userServiceAPIKey)
+	_ = userHTTPClient // not called anywhere yet — just proving it compiles and wires
 	temporalhostport := os.Getenv("TEMPORAL_HOST_PORT")
 	if temporalhostport == "" {
 		temporalhostport = "temporal:7233"
