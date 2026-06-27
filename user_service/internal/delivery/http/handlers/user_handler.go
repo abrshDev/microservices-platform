@@ -16,7 +16,19 @@ type UserHandler struct {
 	DeleteHandler *commands.DeleteUserHandler
 	LoginHandler  *queries.LoginHandler
 }
+type InternalUserHandler struct {
+}
 
+func (h *InternalUserHandler) GetUserByID(c *fiber.Ctx) error {
+	return c.SendStatus(200)
+}
+
+func (h *InternalUserHandler) CheckUserExists(c *fiber.Ctx) error {
+	return c.SendStatus(200)
+}
+func NewInternalUserHandler() *InternalUserHandler {
+	return &InternalUserHandler{}
+}
 func NewUserHandler(c *commands.CreateUserHandler, q *queries.GetUserHandler, d *commands.DeleteUserHandler, l *queries.LoginHandler) *UserHandler {
 	return &UserHandler{
 		createHandler: c,
@@ -51,7 +63,9 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 	id := c.Params("id")
-
+	if id == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "id is required"})
+	}
 	query := queries.GetUserQuery{ID: id}
 	user, err := h.getHandler.Execute(c.Context(), query)
 	if err != nil {
@@ -89,5 +103,21 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 	return c.Status(200).JSON(fiber.Map{
 		"access_token": accessToken,
 		"message":      "Login successful",
+	})
+}
+
+func (h *UserHandler) ListUser(c *fiber.Ctx) error {
+	status := c.Query("status", "")
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+	if limit > 100 {
+		limit = 100
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"status": status,
+		"page":   page,
+		"limit":  limit,
+		"data":   []string{}, // hardcoded placeholder for now
 	})
 }
