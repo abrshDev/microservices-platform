@@ -65,8 +65,9 @@ func main() {
 
 	// 6. Setup REST API (Fiber)
 	userHttpHandler := http_handlers.NewUserHandler(createUserCmd, getUserQuery, deleteUserCmd, loginQuery)
+	internalUserHandler := http_handlers.NewInternalUserHandler()
 	app := fiber.New()
-	http.SetupRoutes(app, userHttpHandler)
+	http.SetupRoutes(app, userHttpHandler, internalUserHandler)
 
 	log.Println("REST server listening on :8080")
 	log.Fatal(app.Listen(":8080"))
